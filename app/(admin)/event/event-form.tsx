@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { EventRow, EventType } from "@/lib/types";
 import { EVENT_TYPES, MEALS_PER_PERSON, predict } from "@/lib/predict";
 import { fmtTime, fromLagosInput, n0, toLagosInput } from "@/lib/format";
@@ -10,7 +11,7 @@ import { Check, ChevronRight, Loader2 } from "lucide-react";
 
 export function EventForm({ event }: { event: EventRow | null }) {
   const [f, setF] = useState({
-    name: event?.name ?? "Convocation 2026",
+    name: event?.name ?? "",
     type: (event?.type ?? "convocation") as EventType,
     students: event?.students ?? 8000,
     starts: toLagosInput(event?.starts_at ?? "2026-10-30T13:00:00Z"),
@@ -20,6 +21,7 @@ export function EventForm({ event }: { event: EventRow | null }) {
     vendors: event?.vendors ?? 5,
   });
   const toast = useToast();
+  const router = useRouter();
   const [pending, start] = useTransition();
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const v = e.target.value;
@@ -31,7 +33,8 @@ export function EventForm({ event }: { event: EventRow | null }) {
   function onSave() {
     start(async () => {
       const r = await saveEvent({ id: event?.id, ...f, starts_at: fromLagosInput(f.starts) });
-      toast(r.ok, r.ok ? "Event saved" : r.error);
+      toast(r.ok, r.ok ? (event ? "Event saved" : "Event created") : r.error);
+      if (r.ok && !event) { router.replace("/event"); router.refresh(); }
     });
   }
 
@@ -45,7 +48,7 @@ export function EventForm({ event }: { event: EventRow | null }) {
     <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
       <section className="flex flex-col gap-5">
         <h2 className="h2">Event details</h2>
-        <label className="label">Name<input id="ev-name" className="input" value={f.name} onChange={set("name")} /></label>
+        <label className="label">Name<input id="ev-name" className="input" value={f.name} placeholder="e.g. Convocation 2026" onChange={set("name")} /></label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="label">Event type
             <select id="ev-type" className="input" value={f.type} onChange={set("type")}>
@@ -103,7 +106,7 @@ export function EventForm({ event }: { event: EventRow | null }) {
       </section>
 
       <div className="max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:border-t max-md:border-line max-md:bg-white/95 max-md:px-4 max-md:py-3 max-md:backdrop-blur">
-        <button className="btn-dark max-md:w-full" onClick={onSave} disabled={pending}>
+        <button className="btn-dark max-md:w-full" onClick={onSave} disabled={pending || !f.name.trim()}>
           {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
           {pending ? "Saving…" : event ? "Save changes" : "Create event"}
         </button>

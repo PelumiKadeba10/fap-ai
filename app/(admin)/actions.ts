@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +8,7 @@ import { getActiveEvent, getBatches, getDeliveries, getSites, sumBy } from "@/li
 import { lagosTimeToday } from "@/lib/format";
 import { runMatching } from "@/lib/match";
 import { urgency } from "@/lib/urgency";
+import { EVENT_COOKIE } from "@/lib/event-cookie";
 import { applyStatus } from "@/lib/apply-status";
 import type { DeliveryStatus } from "@/lib/types";
 
@@ -44,10 +46,29 @@ export async function saveEvent(input: z.input<typeof EventInput>): Promise<Resu
   if (!parsed.success) return { ok: false, error: "Check the event details: every field needs a valid value." };
   const supabase = await db();
   const { id, ...row } = parsed.data;
-  const { error } = id
-    ? await supabase.from("events").update(row).eq("id", id)
-    : await supabase.from("events").insert({ ...row, active: true });
-  if (error) return { ok: false, error: error.message };
+  if (id) {
+    const { error } = await supabase.from("events").update(row).eq("id", id);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { data, error } = await supabase.from("events").insert({ ...row, active: true }).select("id").single();
+    if (error) return { ok: false, error: error.message };
+    await setEventCookie(data.id);
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+async function setEventCookie(id: string) {
+  (await cookies()).set(EVENT_COOKIE, id, { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 180 });
+}
+
+/** Make this event the one the coordinator is working on. */
+export async function selectEvent(id: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown event." };
+  const supabase = await db();
+  const { data } = await supabase.from("events").select("id").eq("id", id).maybeSingle();
+  if (!data) return { ok: false, error: "That event no longer exists." };
+  await setEventCookie(id);
   revalidatePath("/", "layout");
   return { ok: true };
 }

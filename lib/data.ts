@@ -1,11 +1,26 @@
+import { cookies } from "next/headers";
 import { createClient } from "./supabase/server";
+import { EVENT_COOKIE } from "./event-cookie";
 import type { Batch, Delivery, EventRow, Site, Volunteer } from "./types";
 
-/** The event currently being run (most recent active one). */
+export type EventSummary = { id: string; name: string; starts_at: string };
+
+/** The selected event (from the cookie), or else the one with the latest start time. */
 export async function getActiveEvent(): Promise<EventRow | null> {
   const supabase = await createClient();
-  const { data } = await supabase.from("events").select("*").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const id = (await cookies()).get(EVENT_COOKIE)?.value;
+  if (id && /^[0-9a-f-]{36}$/i.test(id)) {
+    const { data } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
+    if (data) return data as EventRow;
+  }
+  const { data } = await supabase.from("events").select("*").order("starts_at", { ascending: false }).limit(1).maybeSingle();
   return (data as EventRow | null) ?? null;
+}
+
+export async function getEvents(): Promise<EventSummary[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("events").select("id, name, starts_at").order("starts_at", { ascending: false });
+  return (data ?? []) as EventSummary[];
 }
 
 export async function getBatches(eventId: string): Promise<Batch[]> {

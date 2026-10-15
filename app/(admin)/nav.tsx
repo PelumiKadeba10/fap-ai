@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, ClipboardList, Map, Radio, FileBarChart } from "lucide-react";
 
-const TABS = [
+export const TABS = [
   ["/event", "Event & surplus", CalendarDays],
   ["/intake", "Food intake", ClipboardList],
   ["/match", "Match & route", Map],
@@ -22,7 +22,7 @@ export function Nav() {
   }, [path]);
 
   return (
-    <nav aria-label="Sections" className="no-print -mx-4 mt-1 flex gap-1 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:gap-2 sm:px-0 [scrollbar-width:none]">
+    <nav aria-label="Sections" className="no-print hidden md:flex -mx-4 mt-1 gap-1 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:gap-2 sm:px-0 [scrollbar-width:none]">
       {TABS.map(([href, label, Icon], i) => {
         const on = path.startsWith(href);
         return (
