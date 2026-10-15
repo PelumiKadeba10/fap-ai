@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getDeliveries, getPhotoUrls, getSites, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getPhotoUrls, getSites, getTrips, sumBy } from "@/lib/data";
 import { predict } from "@/lib/predict";
 import { fmtDur, fmtTime, minutesBetween, n0 } from "@/lib/format";
 import { siteNeed } from "@/lib/match";
+import { busTotals, hubTotals } from "@/lib/impact";
 import { EmptyState, PageHeader, SectionHead, Stat } from "../ui";
 import { PrintButton } from "./print-button";
 import { PhotoThumb } from "../photo-viewer";
@@ -13,7 +14,9 @@ const TECH_BUDGET = 50_000; // ₦, platform only
 export default async function ImpactPage() {
   const event = await getActiveEvent();
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
-  const [batches, deliveries, sites] = await Promise.all([getBatches(event.id, "approved"), getDeliveries(event.id), getSites()]);
+  const [batches, deliveries, sites, hubs, trips, buses] = await Promise.all([
+    getBatches(event.id, "approved"), getDeliveries(event.id), getSites(), getCollectionPoints(event.id), getTrips(event.id), getBuses(),
+  ]);
 
   const recovered = batches.reduce((t, b) => t + b.qty, 0);
   const done = deliveries.filter((d) => d.status === "delivered" && d.delivered_at);
@@ -29,6 +32,9 @@ export default async function ImpactPage() {
   const predicted = predict(event).surplus;
   const gallery = batches.filter((b) => b.photo_path).sort((a, b) => +new Date(b.collected_at) - +new Date(a.collected_at)).slice(0, 24);
   const photoUrls = await getPhotoUrls(gallery);
+  const hubName = (id: string) => (id === "none" ? "No hub" : hubs.find((h) => h.id === id)?.name ?? "Hub");
+  const perHub = hubTotals(batches, deliveries);
+  const perBus = busTotals(trips, deliveries);
   const safePct = deliveredQty ? Math.round((100 * safeQty) / deliveredQty) : 0;
 
   const summary = deliveredQty
@@ -80,6 +86,41 @@ export default async function ImpactPage() {
           </dl>
         </section>
       </div>
+      {(perHub.length > 0 || perBus.length > 0) && (
+        <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
+          <section className="flex flex-col gap-4">
+            <SectionHead title="By hub" aside="portions" />
+            <table className="w-full border-collapse text-[15px]">
+              <thead><tr><th className="th">Hub</th><th className="th text-right">Recovered</th><th className="th text-right">Delivered</th></tr></thead>
+              <tbody>
+                {perHub.map((h) => (
+                  <tr key={h.hubId}><td className="cell">{hubName(h.hubId)}</td><td className="cell text-right font-mono">{n0(h.recovered)}</td><td className="cell text-right font-mono">{n0(h.delivered)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+          <section className="flex flex-col gap-4">
+            <SectionHead title="By bus" aside="trips that have left" />
+            {perBus.length === 0 ? <p className="text-sm text-muted">No bus has left yet.</p> : (
+              <table className="w-full border-collapse text-[15px]">
+                <thead><tr><th className="th">Bus</th><th className="th text-right">Trips</th><th className="th text-right">Packs</th><th className="th text-right">Stops</th><th className="th text-right">On time</th></tr></thead>
+                <tbody>
+                  {perBus.map((b) => (
+                    <tr key={b.busId}>
+                      <td className="cell">{buses.find((x) => x.id === b.busId)?.name ?? "Bus"}</td>
+                      <td className="cell text-right font-mono">{b.trips}</td>
+                      <td className="cell text-right font-mono">{n0(b.packs)}</td>
+                      <td className="cell text-right font-mono">{b.stops}</td>
+                      <td className="cell text-right font-mono">{b.onTimePct == null ? "—" : `${b.onTimePct}%`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </div>
+      )}
+
       {gallery.length > 0 && (
         <section className="flex flex-col gap-4">
           <SectionHead title="Photos from tonight" aside={`${gallery.length} shown`} />

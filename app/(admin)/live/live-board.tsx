@@ -1,171 +1,146 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, Copy, Filter, MessageCircle, UserPlus } from "lucide-react";
-import type { Batch, Delivery, DeliveryStatus, Site, Volunteer } from "@/lib/types";
-import { ATTENTION_MIN, NEXT_STATUS, STATUS } from "@/lib/status";
-import { fmtDur, fmtTime, minutesBetween, n0 } from "@/lib/format";
+import { Bus as BusIcon, ClipboardList, Soup } from "lucide-react";
+import type { Batch, Bus, CollectionPoint, Delivery, DeliveryStatus, Site, Trip, Volunteer } from "@/lib/types";
+import { ATTENTION_MIN, STATUS } from "@/lib/status";
+import { ACTIVE_TRIP, freeBuses, groupStops, stopAlerts } from "@/lib/trip-status";
+import { waitingByHub } from "@/lib/food-waiting";
+import { fmtTime, n0 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
-import { addVolunteer, assignVolunteer, setStatusAsStaff } from "../actions";
-import { EmptyState, Pill, SectionHead, Stat, StatusPill, cardTable } from "../ui";
+import { setStopStatusAsStaff, setTripBus, setTripStatusAsStaff } from "../actions";
+import { EmptyState, Pill, SectionHead, Stat } from "../ui";
 import { useToast } from "../toast";
+import { BusCard } from "./bus-card";
+import { BusesManager } from "./buses-manager";
+import { DirectDeliveries } from "./direct-deliveries";
 
 type Update = { id: number; delivery_id: string; status: string; note: string | null; created_at: string };
-type FilterKey = "all" | "attention" | "waiting" | "moving" | "delivered";
 
-const ACT = "btn-line min-h-9 px-3 py-1 text-[13px] max-md:min-h-11";
+const RANK: Record<string, number> = { departed: 0, loading: 1, planned: 2, free: 3, returned: 4 };
 
-export function LiveBoard({ eventId, deliveries, batches, sites, volunteers, updates, siteUrl }: {
-  eventId: string; deliveries: Delivery[]; batches: Batch[]; sites: Site[]; volunteers: Volunteer[]; updates: Update[]; siteUrl: string;
+export function LiveBoard({ eventId, trips, buses, hubs, deliveries, batches, sites, volunteers, updates, siteUrl }: {
+  eventId: string; trips: Trip[]; buses: Bus[]; hubs: Pick<CollectionPoint, "id" | "name">[]; deliveries: Delivery[];
+  batches: Batch[]; sites: Site[]; volunteers: Volunteer[]; updates: Update[]; siteUrl: string;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [now, setNow] = useState(() => new Date());
   const [copied, setCopied] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("all");
   const [pending, start] = useTransition();
+  const [origin, setOrigin] = useState(siteUrl);
+  useEffect(() => { if (!siteUrl) setOrigin(window.location.origin); }, [siteUrl]);
 
-  // Realtime: any change to this event's deliveries reloads the board's data.
+  // Realtime: any change to this event's trips or deliveries reloads the board's data.
   useEffect(() => {
     const supabase = createClient();
     const ch = supabase
       .channel(`live-${eventId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "deliveries", filter: `event_id=eq.${eventId}` }, () => router.refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trips", filter: `event_id=eq.${eventId}` }, () => router.refresh())
       .subscribe();
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => { clearInterval(t); supabase.removeChannel(ch); };
   }, [eventId, router]);
 
-  const batch = new Map(batches.map((b) => [b.id, b]));
-  const site = new Map(sites.map((s) => [s.id, s]));
-  const vol = new Map(volunteers.map((v) => [v.id, v]));
-  const left = (d: Delivery) => minutesBetween(now, d.safe_until);
-  const needsAttention = (d: Delivery) => d.status !== "delivered" && (d.status === "delayed" || left(d) < ATTENTION_MIN);
-
-  const delivered = deliveries.filter((d) => d.status === "delivered");
-  const counts = {
-    delivered: delivered.reduce((t, d) => t + d.qty, 0),
-    total: deliveries.reduce((t, d) => t + d.qty, 0),
-    moving: deliveries.filter((d) => d.status === "picked_up" || d.status === "on_the_way").length,
-    waiting: deliveries.filter((d) => d.status === "assigned").length,
-    attention: deliveries.filter(needsAttention).length,
-    unassigned: deliveries.filter((d) => !d.volunteer_id && d.status !== "delivered").length,
-  };
-
-  const FILTERS: { key: FilterKey; label: string; n: number; test: (d: Delivery) => boolean }[] = [
-    { key: "all", label: "All", n: deliveries.length, test: () => true },
-    { key: "attention", label: "Needs attention", n: counts.attention, test: needsAttention },
-    { key: "waiting", label: "Waiting", n: counts.waiting, test: (d) => d.status === "assigned" },
-    { key: "moving", label: "On the way", n: counts.moving, test: (d) => d.status === "picked_up" || d.status === "on_the_way" },
-    { key: "delivered", label: "Delivered", n: delivered.length, test: (d) => d.status === "delivered" },
-  ];
-  const shown = deliveries.filter(FILTERS.find((f) => f.key === filter)!.test);
-
-  const [origin, setOrigin] = useState(siteUrl);
-  useEffect(() => { if (!siteUrl) setOrigin(window.location.origin); }, [siteUrl]);
-  const link = (d: Delivery) => `${origin}/v/${d.token}`;
-  function whatsapp(d: Delivery) {
-    const v = d.volunteer_id ? vol.get(d.volunteer_id) : null;
-    const b = batch.get(d.batch_id), s = site.get(d.site_id);
-    const text = `FAP delivery: ${d.qty} portions of ${b?.food} to ${s?.name}. Safe until ${fmtTime(d.safe_until)}. Tap to update your status: ${link(d)}`;
-    const phone = (v?.phone ?? "").replace(/\D/g, "").replace(/^0/, "234");
-    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-  }
-  async function copy(d: Delivery) {
-    try { await navigator.clipboard.writeText(link(d)); setCopied(d.id); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
-  }
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => start(async () => { const r = await fn(); if (!r.ok) toast(false, r.error ?? "Something went wrong."); });
+
+  const batchById = new Map(batches.map((b) => [b.id, b]));
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  const busById = new Map(buses.map((b) => [b.id, b]));
+  const hubById = new Map(hubs.map((h) => [h.id, h.name]));
+  const hubName = (id: string | null) => (id ? hubById.get(id) ?? "Hub" : "No hub");
+
+  const tripDeliveries = (t: Trip) => deliveries.filter((d) => d.trip_id === t.id);
+  const stopsOf = (t: Trip) => groupStops(tripDeliveries(t));
+  const direct = deliveries.filter((d) => !d.trip_id);
+
+  const live = trips.filter((t) => t.status !== "cancelled");
+  const free = freeBuses(buses, trips);
+  const planned = deliveries.filter((d) => d.trip_id).reduce((t, d) => t + d.qty, 0);
+  const done = deliveries.filter((d) => d.trip_id && d.status === "delivered").reduce((t, d) => t + d.qty, 0);
+  const attention = live.filter((t) => ACTIVE_TRIP.includes(t.status)).reduce((n, t) => n + stopAlerts(stopsOf(t), now, ATTENTION_MIN).length, 0);
+
+  // One card per active bus (its current trip), plus trips that have no bus yet.
+  const activeBuses = buses.filter((b) => b.active);
+  const currentOf = (b: Bus) => {
+    const mine = live.filter((t) => t.bus_id === b.id);
+    return mine.find((t) => ACTIVE_TRIP.includes(t.status)) ?? [...mine].reverse()[0] ?? null;
+  };
+  const shown = new Set<string>();
+  const cards: { key: string; bus: Bus | null; trip: Trip | null }[] = activeBuses.map((b) => { const t = currentOf(b); if (t) shown.add(t.id); return { key: b.id, bus: b, trip: t }; });
+  for (const t of live) if (ACTIVE_TRIP.includes(t.status) && !shown.has(t.id)) cards.push({ key: t.id, bus: t.bus_id ? busById.get(t.bus_id) ?? null : null, trip: t });
+  cards.sort((a, b) => RANK[a.trip?.status ?? "free"] - RANK[b.trip?.status ?? "free"]);
+
+  const waiting = waitingByHub(batches, deliveries);
+  const waitingHubs = Object.entries(waiting).sort((a, b) => b[1].portions - a[1].portions);
+  const loadable = new Set(live.filter((t) => t.status === "planned" || t.status === "loading").map((t) => t.hub_id ?? "none"));
+
+  async function copy(t: Trip) {
+    try { await navigator.clipboard.writeText(`${origin}/b/${t.token}`); setCopied(t.id); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
+  }
+
+  const deliveryTrip = new Map(deliveries.map((d) => [d.id, d]));
 
   return (
     <>
       <div className="grid grid-cols-2 gap-x-5 gap-y-6 md:grid-cols-4">
-        <Stat label="Delivered" value={n0(counts.delivered)} hint={`of ${n0(counts.total)} portions`} />
-        <Stat label="On the way" value={String(counts.moving)} hint="deliveries" />
-        <Stat label="Waiting" value={String(counts.waiting)} hint={counts.unassigned ? `${counts.unassigned} without a volunteer` : "waiting for pickup"} />
-        <Stat label="Needs attention" value={String(counts.attention)} tone={counts.attention ? "red" : "green"} hint={counts.attention ? "delayed or near safe time" : "all on track"} />
+        <Stat label="Packs delivered" value={n0(done)} hint={`of ${n0(planned)} planned`} />
+        <Stat label="Buses out" value={String(live.filter((t) => t.status === "departed").length)} hint="on the road" />
+        <Stat label="Buses free" value={String(free.length)} hint={free.length ? free.map((b) => b.name).join(", ") : "none right now"} />
+        <Stat label="Stops needing attention" value={String(attention)} tone={attention ? "red" : "green"} hint={attention ? "problem or near safe time" : "all on track"} />
       </div>
 
-      <section className="flex flex-col gap-4">
-        <SectionHead title="Deliveries" aside={<>Updated {fmtTime(now)} · refreshes live</>} />
-        <div role="group" aria-label="Filter deliveries" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 [scrollbar-width:none]">
-          {FILTERS.map((f) => {
-            const on = filter === f.key;
-            const alarm = f.key === "attention" && f.n > 0;
-            return (
-              <button key={f.key} type="button" aria-pressed={on} onClick={() => setFilter(f.key)}
-                className={`chip flex-none max-md:min-h-11 ${on ? "!border-ink !bg-ink !text-white" : alarm ? "!text-crit" : ""}`}>
-                {f.key === "attention" && <AlertTriangle className="size-3.5" aria-hidden />}
-                {f.label} <span className="font-mono text-xs opacity-80">{f.n}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {shown.length === 0 ? (
-          <EmptyState icon={Filter} action={<button className="underline underline-offset-4" onClick={() => setFilter("all")}>Show all deliveries</button>}>
-            {filter === "attention" ? "Nothing needs attention right now." : "No deliveries match this filter."}
-          </EmptyState>
+      <section className="flex flex-col gap-3" aria-label="Food waiting per hub">
+        <SectionHead title="Food waiting per hub" aside="approved food not yet on a trip" />
+        {waitingHubs.length === 0 ? (
+          <p className="text-sm text-muted">Nothing waiting. Everything checked so far is on a trip.</p>
         ) : (
-          <table className={cardTable}>
-            <thead><tr><th className="th md:pl-3">Food</th><th className="th">Deliver to</th><th className="th">Volunteer</th><th className="th">Status</th><th className="th">Safe until</th><th className="th">Actions</th></tr></thead>
-            <tbody>
-              {shown.map((d) => {
-                const m = left(d);
-                const s = site.get(d.site_id);
-                const attn = needsAttention(d);
-                const reason = d.status === "delayed" ? "Delayed" : m > 0 ? `${fmtDur(m)} left` : `Late ${fmtDur(-m)}`;
-                const onTime = d.delivered_at ? new Date(d.delivered_at) <= new Date(d.safe_until) : true;
-                const cd = m < ATTENTION_MIN ? "text-crit" : m < 45 ? "text-warn" : "text-muted";
-                return (
-                  <tr key={d.id} className={attn ? "bg-[#fdf6f5] max-md:border-l-4 max-md:border-l-crit max-md:pl-3" : ""}>
-                    <td className={`cell md:border-l-4 md:pl-2 max-md:col-span-2 ${attn ? "md:border-l-crit" : "md:border-l-transparent"}`} data-label="Food">
-                      <b className="font-semibold">{batch.get(d.batch_id)?.food}</b>
-                      <div className="font-mono text-[13px] text-muted">{d.qty} portions</div>
-                    </td>
-                    <td className="cell" data-label="Deliver to">{s?.name}{s?.contact_phone && <div className="font-mono text-[13px] text-muted">{s.contact_phone}</div>}</td>
-                    <td className="cell" data-label="Volunteer">
-                      <select id={`vol-${d.id}`} aria-label={`Volunteer for ${d.qty} portions to ${s?.name}`} className="input py-1.5 max-md:min-h-11" value={d.volunteer_id ?? ""} disabled={pending || d.status === "delivered"}
-                        onChange={(e) => run(() => assignVolunteer(d.id, e.target.value || null))}>
-                        <option value="">Choose…</option>
-                        {volunteers.map((v) => <option key={v.id} value={v.id}>{v.name}{v.vehicle !== "none" ? ` (${v.vehicle})` : ""}</option>)}
-                      </select>
-                    </td>
-                    <td className="cell" data-label="Status">
-                      <StatusPill status={d.status} />
-                      <div className="mt-1 font-mono text-xs text-muted">{fmtTime(d.updated_at)}</div>
-                      {attn && <div className="mt-1"><Pill tone="red" icon={AlertTriangle}>{reason}</Pill></div>}
-                    </td>
-                    <td className="cell" data-label="Safe until">
-                      <span className="font-mono">{fmtTime(d.safe_until)}</span>
-                      <div className="text-[13px] font-medium">
-                        {d.status === "delivered"
-                          ? <span className={onTime ? "text-ok" : "text-crit"}>{onTime ? "Delivered on time" : "Delivered late"}</span>
-                          : <span className={cd}>{m > 0 ? `${fmtDur(m)} left` : `Late ${fmtDur(-m)}`}</span>}
-                      </div>
-                    </td>
-                    <td className="cell" data-label="Actions">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {d.status !== "delivered" && d.volunteer_id && (
-                          <a className={ACT} href={whatsapp(d)} target="_blank" rel="noreferrer"><MessageCircle className="size-4" aria-hidden />WhatsApp</a>
-                        )}
-                        {d.status !== "delivered" && (
-                          <button className={ACT} onClick={() => copy(d)}>
-                            {copied === d.id ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-                            {copied === d.id ? "Copied" : "Copy link"}
-                          </button>
-                        )}
-                        {NEXT_STATUS[d.status].map((to: DeliveryStatus) => (
-                          <button key={to} className={`${ACT} ${to === "delivered" ? "!border-ink !bg-ink !text-white hover:!bg-[#2a3038]" : ""}`} disabled={pending} title="Update on the volunteer’s behalf" onClick={() => run(() => setStatusAsStaff(d.id, d.status, to))}>
-                            → {STATUS[to].label}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <ul className="flex flex-wrap gap-x-8 gap-y-3">
+            {waitingHubs.map(([id, w]) => (
+              <li key={id} className="flex flex-col gap-1">
+                <span className="flex items-baseline gap-2"><Soup className="size-4 self-center text-muted" aria-hidden /><b className="font-semibold">{id === "none" ? "No hub" : hubName(id)}</b><span className="font-mono text-sm">{n0(w.portions)} portions · {w.batches} {w.batches === 1 ? "batch" : "batches"}</span></span>
+                {loadable.has(id) && <Link className="link self-start" href={`/trips/load?hub=${id}`}><ClipboardList className="mr-1 inline size-3.5" aria-hidden />Show all loading lists for {id === "none" ? "No hub" : hubName(id)}</Link>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {free.length > 0 && waitingHubs.length > 0 && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l-4 border-orange bg-[#fffaf0] px-4 py-3 text-[15px] font-medium" role="status">
+            <span>{free[0].name} is free and {waitingHubs[0][0] === "none" ? "there" : hubName(waitingHubs[0][0])} has <span className="font-mono">{n0(waitingHubs[0][1].portions)}</span> portions waiting.</span>
+            <Link href="/match" className="underline underline-offset-4">Plan trips</Link>
+          </p>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionHead title="Buses" aside={<>Updated {fmtTime(now)} · refreshes live</>} />
+        {cards.length === 0 ? (
+          <EmptyState icon={BusIcon} action={<Link href="/match">Go to Match & route</Link>}>No buses or trips yet. Add buses below, then plan trips.</EmptyState>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {cards.map(({ key, bus, trip }) => trip ? (
+              <BusCard
+                key={key} trip={trip} bus={bus} hubName={hubName(trip.hub_id)} stops={stopsOf(trip)} now={now}
+                foodName={(id) => batchById.get(id)?.food ?? "Food"} siteName={(id) => siteById.get(id)?.name ?? "Site"}
+                pickable={[...free, ...(bus && !free.some((f) => f.id === bus.id) ? [bus] : [])]}
+                link={`${origin}/b/${trip.token}`} copied={copied === trip.id} busy={pending}
+                onCopy={() => copy(trip)}
+                onBus={(id) => run(() => setTripBus(trip.id, id))}
+                onTripStatus={(to) => run(() => setTripStatusAsStaff(trip.id, to))}
+                onStop={(order, to) => run(() => setStopStatusAsStaff(trip.id, order, to))}
+              />
+            ) : (
+              <article key={key} className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
+                <div>
+                  <h3 className="text-base font-semibold">{bus?.name}</h3>
+                  <p className="text-sm text-muted">Capacity <span className="font-mono">{bus?.capacity}</span> packs{bus?.lead_name ? ` · ${bus.lead_name}` : ""}</p>
+                </div>
+                <Pill tone="green">Free</Pill>
+              </article>
+            ))}
+          </div>
         )}
       </section>
 
@@ -175,43 +150,25 @@ export function LiveBoard({ eventId, deliveries, batches, sites, volunteers, upd
           {updates.length === 0 ? <p className="text-sm text-muted">No updates yet.</p> : (
             <ol className="flex max-h-80 flex-col overflow-auto border-l border-line pl-4 text-sm">
               {updates.map((u) => {
-                const d = deliveries.find((x) => x.id === u.delivery_id);
-                const v = d?.volunteer_id ? vol.get(d.volunteer_id)?.name : null;
+                const d = deliveryTrip.get(u.delivery_id);
+                const trip = d?.trip_id ? trips.find((t) => t.id === d.trip_id) : null;
+                const who = trip ? (trip.bus_id ? busById.get(trip.bus_id)?.name : null) ?? "Bus" : d?.volunteer_id ? volunteers.find((v) => v.id === d.volunteer_id)?.name ?? "Volunteer" : "Volunteer";
                 return (
                   <li key={u.id} className="relative pb-3.5">
                     <span className="absolute top-[7px] -left-[20.5px] size-2 rounded-full bg-[#b3bac2] ring-4 ring-white" aria-hidden />
                     <time className="font-mono text-xs text-muted">{fmtTime(u.created_at)}</time>
-                    <p><b className="font-medium">{v ?? "Volunteer"}</b> · {STATUS[u.status as DeliveryStatus]?.label ?? u.status}</p>
-                    <p className="text-[13px] text-muted">{d ? `${d.qty} to ${site.get(d.site_id)?.name}` : ""}{u.note ? ` (${u.note})` : ""}</p>
+                    <p><b className="font-medium">{who}</b> · {STATUS[u.status as DeliveryStatus]?.label ?? u.status}</p>
+                    <p className="text-[13px] text-muted">{d ? `${d.qty} to ${siteById.get(d.site_id)?.name}` : ""}{u.note ? ` (${u.note})` : ""}</p>
                   </li>
                 );
               })}
             </ol>
           )}
         </section>
-        <AddVolunteer onAdd={(v) => run(() => addVolunteer(v))} pending={pending} />
+        <BusesManager buses={buses} busyIds={trips.filter((t) => ACTIVE_TRIP.includes(t.status) && t.bus_id).map((t) => t.bus_id as string)} />
       </div>
-    </>
-  );
-}
 
-function AddVolunteer({ onAdd, pending }: { onAdd: (v: { name: string; phone: string | null; vehicle: "none" | "car" | "bike" }) => void; pending: boolean }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [vehicle, setVehicle] = useState<"none" | "car" | "bike">("none");
-  return (
-    <section className="flex flex-col gap-4">
-      <SectionHead title="Add a volunteer" />
-      <form className="grid gap-3 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); onAdd({ name, phone: phone || null, vehicle }); setName(""); setPhone(""); }}>
-        <label className="label">Name<input id="nv-name" className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required /></label>
-        <label className="label">Phone (WhatsApp)<input id="nv-phone" className="input font-mono" type="tel" placeholder="0803…" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
-        <label className="label">Vehicle
-          <select id="nv-vehicle" className="input" value={vehicle} onChange={(e) => setVehicle(e.target.value as typeof vehicle)}>
-            <option value="none">No vehicle</option><option value="car">Car</option><option value="bike">Bike</option>
-          </select>
-        </label>
-        <button className="btn-line sm:col-span-3 sm:justify-self-start" disabled={pending || !name.trim()}><UserPlus className="size-4" aria-hidden />Add volunteer</button>
-      </form>
-    </section>
+      <DirectDeliveries deliveries={direct} batches={batches} sites={sites} volunteers={volunteers} now={now} origin={origin} />
+    </>
   );
 }

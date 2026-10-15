@@ -5,6 +5,7 @@ export type EventType = "convocation" | "matriculation" | "conference" | "weddin
 export type SiteKind = "School" | "Community" | "Care home" | "Shelter" | "Other";
 export type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 export type ReviewStatus = "pending" | "approved";
+export type TripStatus = "planned" | "loading" | "departed" | "returned" | "cancelled";
 export type DeliveryStatus = "assigned" | "picked_up" | "on_the_way" | "delayed" | "delivered";
 
 export interface EventRow {
@@ -83,6 +84,8 @@ export interface Delivery {
   token: string;
   safe_until: string;
   planned_km: number | null;
+  trip_id: string | null;
+  stop_order: number | null;
   was_delayed: boolean;
   delivered_at: string | null;
   updated_at: string;
@@ -98,4 +101,26 @@ export interface ParsedRecord {
   condition: string;
   category: Category;
   notes: string;
+}
+
+export interface Bus {
+  id: string;
+  name: string;
+  capacity: number;
+  lead_name: string | null;
+  lead_phone: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export interface Trip {
+  id: string;
+  event_id: string;
+  hub_id: string | null;
+  bus_id: string | null;
+  status: TripStatus;
+  token: string;
+  created_at: string;
+  departed_at: string | null;
+  returned_at: string | null;
 }

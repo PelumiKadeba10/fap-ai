@@ -28,7 +28,7 @@ export default async function IntakePage() {
         description="Check food reported from collection points, or paste a volunteer’s message. FAP AI turns it into a record you can check before it is matched, and scores its urgency."
       />
       <NeedsChecking eventId={event.id} batches={pending} pointNames={Object.fromEntries(points.map((p) => [p.id, p.name]))} photos={photos} />
-      <IntakeBox />
+      <IntakeBox hubs={points.filter((p) => p.active)} />
       <BatchTable batches={approved} sent={Object.fromEntries(sent)} photos={photos} />
       <CollectionPoints points={points} siteUrl={process.env.SITE_URL ?? ""} />
     </>

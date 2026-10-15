@@ -14,3 +14,8 @@ insert into public.volunteers (name, phone, vehicle) values
   ('Volunteer 1', '+2348000000001', 'car'),
   ('Volunteer 2', '+2348000000002', 'bike'),
   ('Volunteer 3', '+2348000000003', 'car');
+
+insert into public.buses (name, capacity) values
+  ('Bus 1', 400),
+  ('Bus 2', 400),
+  ('Bus 3', 400);

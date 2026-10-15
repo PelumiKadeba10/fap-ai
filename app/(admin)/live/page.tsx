@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Truck } from "lucide-react";
-import { getActiveEvent, getBatches, getDeliveries, getSites, getVolunteers } from "@/lib/data";
+import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getSites, getTrips, getVolunteers } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageHeader } from "../ui";
+import { BusesManager } from "./buses-manager";
 import { LiveBoard } from "./live-board";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +12,14 @@ export default async function LivePage() {
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
 
   const supabase = await createClient();
-  const [deliveries, batches, sites, volunteers, updates] = await Promise.all([
+  const [deliveries, batches, sites, volunteers, trips, buses, hubs, updates] = await Promise.all([
     getDeliveries(event.id),
     getBatches(event.id),
     getSites(),
     getVolunteers(),
+    getTrips(event.id),
+    getBuses(),
+    getCollectionPoints(event.id),
     supabase
       .from("status_updates")
       .select("id, delivery_id, status, note, created_at, deliveries!inner(event_id)")
@@ -29,14 +32,20 @@ export default async function LivePage() {
     <>
       <PageHeader
         eyebrow="Step 7 · Live dispatch"
-        title="Every delivery at a glance."
-        description="Volunteers send a status from their phones. Assign each delivery, send the volunteer their link, and watch for anything close to its safe time."
+        title="Every bus at a glance."
+        description="Each bus lead taps updates on their trip link. Send the link, watch progress, and step in when a stop is late or a bus is stuck."
       />
-      {deliveries.length === 0 ? (
-        <EmptyState icon={Truck} action={<Link href="/match">Go to Match & route</Link>}>No deliveries yet. Approve a plan to create them.</EmptyState>
+      {deliveries.length === 0 && trips.length === 0 ? (
+        <>
+          <EmptyState action={<Link href="/match">Go to Match & route</Link>}>No trips yet. Plan and approve trips to start dispatching.</EmptyState>
+          <BusesManager buses={buses} busyIds={[]} />
+        </>
       ) : (
         <LiveBoard
           eventId={event.id}
+          trips={trips}
+          buses={buses}
+          hubs={hubs.map((h) => ({ id: h.id, name: h.name }))}
           deliveries={deliveries}
           batches={batches}
           sites={sites}

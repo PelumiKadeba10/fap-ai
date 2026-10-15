@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import type { Category, ParsedRecord } from "@/lib/types";
+import type { Category, CollectionPoint, ParsedRecord } from "@/lib/types";
 import { CATEGORIES, urgency } from "@/lib/urgency";
 import { fmtDur, fmtTime, lagosTimeToday } from "@/lib/format";
 import { addBatch } from "../actions";
@@ -20,11 +20,13 @@ const BY = {
   manual: { icon: PenLine, text: "Manual entry" },
 } as const;
 
-export function IntakeBox() {
+/** `hubs` are the active collection points. When there are any, pasted food must say which hub it is in. */
+export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">[] }) {
   const [message, setMessage] = useState("");
   const [rec, setRec] = useState<ParsedRecord | null>(null);
   const [parsedBy, setParsedBy] = useState<"claude" | "local" | "manual">("manual");
   const [error, setError] = useState("");
+  const [hubId, setHubId] = useState("");
   const [parsing, setParsing] = useState(false);
   const [saving, startSave] = useTransition();
   const toast = useToast();
@@ -51,12 +53,13 @@ export function IntakeBox() {
       const r = await addBatch({
         food: rec.food, qty: rec.quantity, category: rec.category, collected_time: rec.collected_time,
         location: rec.location, condition: rec.condition, notes: rec.notes,
-        raw_message: message || null, parsed_by: parsedBy,
+        raw_message: message || null, parsed_by: parsedBy, collection_point_id: hubId || null,
       });
       if (!r.ok) return toast(false, r.error);
       toast(true, `Batch saved: ${rec.quantity} portions of ${rec.food}`);
       setRec(null);
       setMessage("");
+      setHubId("");
     });
   }
 
@@ -114,6 +117,14 @@ export function IntakeBox() {
                 </select>
               </label>
               <label className="label">Condition<input id="r-cond" className="input" value={rec.condition} onChange={(e) => edit("condition", e.target.value)} /></label>
+              {hubs.length > 0 && (
+                <label className="label sm:col-span-2">Hub (where the food is)
+                  <select id="r-hub" className="input" value={hubId} onChange={(e) => setHubId(e.target.value)}>
+                    <option value="">Choose a hub…</option>
+                    {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                  </select>
+                </label>
+              )}
               <label className="label sm:col-span-2">Location<input id="r-loc" className="input" value={rec.location} onChange={(e) => edit("location", e.target.value)} /></label>
             </div>
             {u && (
@@ -126,7 +137,7 @@ export function IntakeBox() {
                 </span>
               </div>
             )}
-            <button className="btn-dark self-start max-sm:w-full" onClick={save} disabled={saving || !rec.food || rec.quantity < 1}>
+            <button className="btn-dark self-start max-sm:w-full" onClick={save} disabled={saving || !rec.food || rec.quantity < 1 || (hubs.length > 0 && !hubId)}>
               {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Save className="size-4" aria-hidden />}
               {saving ? "Saving…" : "Save batch"}
             </button>

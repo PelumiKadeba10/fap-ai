@@ -1,0 +1,159 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { AlertTriangle, Check, ClipboardList, Copy, MessageCircle } from "lucide-react";
+import type { Bus, Delivery, Trip, TripStatus } from "@/lib/types";
+import { ATTENTION_MIN } from "@/lib/status";
+import { TRIP_STATUS, canTripMove, stopAlerts, stopStatus, type Stop } from "@/lib/trip-status";
+import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
+import { Pill, StatusPill } from "../ui";
+
+export type BusCardProps = {
+  trip: Trip;
+  bus: Bus | null;
+  hubName: string;
+  stops: Stop<Delivery>[];
+  foodName: (batchId: string) => string;
+  siteName: (siteId: string) => string;
+  now: Date;
+  /** Free buses (plus this trip's own bus) that can be picked before the trip leaves. */
+  pickable: Bus[];
+  link: string;
+  copied: boolean;
+  busy: boolean;
+  onCopy: () => void;
+  onBus: (busId: string | null) => void;
+  onTripStatus: (to: TripStatus) => void;
+  onStop: (order: number, to: "delivered" | "delayed") => void;
+};
+
+const ACT = "btn-line min-h-9 px-3 py-1 text-[13px] max-md:min-h-11";
+
+/** One bus's current trip: progress, next stop, alerts and coordinator controls. */
+export function BusCard(p: BusCardProps) {
+  const { trip, bus, stops, now } = p;
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const total = stops.reduce((t, s) => t + s.items.reduce((n, d) => n + d.qty, 0), 0);
+  const doneStops = stops.filter((s) => stopStatus(s.items.map((d) => d.status)) === "delivered").length;
+  const alerts = ["cancelled", "returned"].includes(trip.status) ? [] : stopAlerts(stops, now, ATTENTION_MIN);
+  const next = stops.find((s) => stopStatus(s.items.map((d) => d.status)) !== "delivered");
+  const nextLeft = next ? Math.min(...next.items.filter((d) => d.status !== "delivered").map((d) => minutesBetween(now, d.safe_until))) : null;
+  const st = TRIP_STATUS[trip.status];
+  const headline = trip.status === "loading" ? `Loading at ${p.hubName}` : trip.status === "planned" ? `Planned · load at ${p.hubName}` : trip.status === "departed" ? "On the road" : st.label;
+  const canEditBus = trip.status === "planned" || trip.status === "loading";
+
+  const text = `FAP trip: ${total} packs from ${p.hubName}. ${stops.length} stops: ${stops.map((s) => p.siteName(s.siteId)).join(", ")}. Tap to update: ${p.link}`;
+  const phone = (bus?.lead_phone ?? "").replace(/\D/g, "").replace(/^0/, "234");
+  const whatsapp = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+
+  return (
+    <article className={`flex flex-col gap-3.5 rounded-xl border border-line p-4 ${alerts.length ? "border-l-4 border-l-crit" : ""}`} aria-label={`${bus?.name ?? "Unassigned"} trip`}>
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold">{bus?.name ?? "No bus yet"} <span className="font-normal text-muted">· {p.hubName}</span></h3>
+          <p className="mt-0.5 text-sm text-muted">{headline} · <span className="font-mono">{total}</span> packs{bus?.lead_name ? ` · ${bus.lead_name}` : ""}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Pill tone={st.tone}>{st.label}</Pill>
+          {trip.status === "departed" && trip.departed_at && <span className="font-mono text-xs text-muted">left {fmtDur(minutesBetween(trip.departed_at, now))} ago</span>}
+        </div>
+      </header>
+
+      {alerts.length > 0 && (
+        <ul className="flex flex-col gap-1.5" aria-label="Needs attention">
+          {alerts.map((a) => (
+            <li key={a.siteId}>
+              <Pill tone="red" icon={AlertTriangle}>
+                {p.siteName(a.siteId)}: {a.kind === "delayed" ? "Problem reported" : a.minutesLeft > 0 ? `${fmtDur(a.minutesLeft)} left` : `${fmtDur(-a.minutesLeft)} late`}
+              </Pill>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {trip.status !== "cancelled" && stops.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between text-[13px]">
+            <span className="font-medium"><span className="font-mono">{doneStops}</span> of <span className="font-mono">{stops.length}</span> stops</span>
+            {next && nextLeft != null && trip.status === "departed" && (
+              <span className="text-muted">Next: {p.siteName(next.siteId)} · <span className={`font-mono ${nextLeft < ATTENTION_MIN ? "font-medium text-crit" : ""}`}>{nextLeft > 0 ? `${fmtDur(nextLeft)} left` : `${fmtDur(-nextLeft)} late`}</span></span>
+            )}
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${doneStops} of ${stops.length} stops delivered`}>
+            <i className="block h-full rounded-full bg-ok" style={{ width: `${(100 * doneStops) / stops.length}%` }} />
+          </div>
+        </div>
+      )}
+
+      <ol className="flex flex-col">
+        {stops.map((s) => {
+          const status = stopStatus(s.items.map((d) => d.status));
+          const left = Math.min(...s.items.filter((d) => d.status !== "delivered").map((d) => minutesBetween(now, d.safe_until)));
+          const isNext = trip.status === "departed" && next?.order === s.order && next.siteId === s.siteId;
+          return (
+            <li key={`${s.order}-${s.siteId}`} className={`grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-2.5 border-t border-line py-2.5 ${isNext ? "bg-soft -mx-2 px-2" : ""}`}>
+              <span className="flex size-6 items-center justify-center rounded-full border border-ink font-mono text-xs font-semibold">{s.order}</span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <span className="font-medium">{p.siteName(s.siteId)}</span>
+                  <StatusPill status={status} />
+                  {status !== "delivered" && Number.isFinite(left) && (
+                    <span className={`font-mono text-xs ${left < ATTENTION_MIN ? "font-medium text-crit" : "text-muted"}`}>
+                      safe until {fmtTime(s.items.reduce((m, d) => (d.safe_until < m ? d.safe_until : m), s.items[0].safe_until))} · {left > 0 ? `${fmtDur(left)} left` : `${fmtDur(-left)} late`}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[13px] text-muted">{s.items.map((d) => `${d.qty} ${p.foodName(d.batch_id)}`).join(" + ")}</p>
+                {trip.status === "departed" && status !== "delivered" && (
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    <button className={ACT} disabled={p.busy} onClick={() => p.onStop(s.order, "delivered")}>Mark delivered</button>
+                    {status !== "delayed" && <button className={ACT} disabled={p.busy} onClick={() => p.onStop(s.order, "delayed")}>Flag a problem</button>}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      {canEditBus && (
+        <label className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          Bus
+          <select className="input w-auto py-1.5 text-sm text-ink max-md:min-h-11" value={trip.bus_id ?? ""} disabled={p.busy} onChange={(e) => p.onBus(e.target.value || null)}>
+            <option value="">No bus yet</option>
+            {p.pickable.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.capacity})</option>)}
+          </select>
+        </label>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        {trip.status !== "cancelled" && trip.status !== "returned" && (
+          <>
+            {bus && <a className={ACT} href={whatsapp} target="_blank" rel="noreferrer"><MessageCircle className="size-4" aria-hidden />WhatsApp bus lead</a>}
+            <button className={ACT} onClick={p.onCopy}>
+              {p.copied ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+              {p.copied ? "Copied" : "Copy link"}
+            </button>
+          </>
+        )}
+        <Link className={ACT} href={`/trips/${trip.id}/load`}><ClipboardList className="size-4" aria-hidden />Loading list</Link>
+      </div>
+
+      {(["loading", "departed", "returned"] as TripStatus[]).some((to) => canTripMove(trip.status, to)) || canTripMove(trip.status, "cancelled") ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+          <span className="text-muted">Coordinator override</span>
+          {canTripMove(trip.status, "loading") && <button className="link" disabled={p.busy} onClick={() => p.onTripStatus("loading")}>Mark loading</button>}
+          {canTripMove(trip.status, "departed") && <button className="link" disabled={p.busy} onClick={() => p.onTripStatus("departed")}>Mark departed</button>}
+          {canTripMove(trip.status, "returned") && <button className="link" disabled={p.busy} onClick={() => p.onTripStatus("returned")}>Mark returned</button>}
+          {canTripMove(trip.status, "cancelled") && (confirmCancel ? (
+            <span className="flex items-center gap-3">
+              <span className="text-crit">Cancel and free the food?</span>
+              <button className="link-danger" disabled={p.busy} onClick={() => p.onTripStatus("cancelled")}>Yes, cancel trip</button>
+              <button className="link" onClick={() => setConfirmCancel(false)}>Keep</button>
+            </span>
+          ) : <button className="link-danger" onClick={() => setConfirmCancel(true)}>Cancel trip</button>)}
+        </div>
+      ) : null}
+    </article>
+  );
+}

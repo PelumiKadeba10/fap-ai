@@ -3,7 +3,8 @@ import { createClient } from "./supabase/server";
 import { EVENT_COOKIE } from "./event-cookie";
 import { foodWaiting, type FoodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
-import type { Batch, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Volunteer } from "./types";
+import { ACTIVE_TRIP } from "./trip-status";
+import type { Batch, Bus, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
 
@@ -91,4 +92,25 @@ export async function getPhotoUrls(batches: { id: string; photo_path: string | n
   const out: Record<string, string> = {};
   withPhoto.forEach((b, i) => { const u = data?.[i]; if (u?.signedUrl && !u.error) out[b.id] = u.signedUrl; });
   return out;
+}
+
+export async function getBuses(): Promise<Bus[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("buses").select("*").order("name");
+  if (error) throw error;
+  return (data ?? []) as Bus[];
+}
+
+export async function getTrips(eventId: string): Promise<Trip[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("trips").select("*").eq("event_id", eventId).order("created_at");
+  if (error) throw error;
+  return (data ?? []) as Trip[];
+}
+
+/** Buses currently on a planned, loading or departed trip, in any event. */
+export async function getBusyBusIds(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("trips").select("bus_id").in("status", ACTIVE_TRIP).not("bus_id", "is", null);
+  return (data ?? []).map((t) => t.bus_id as string);
 }
