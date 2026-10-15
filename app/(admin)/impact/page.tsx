@@ -3,14 +3,15 @@ import { getActiveEvent, getBatches, getDeliveries, getSites, sumBy } from "@/li
 import { predict } from "@/lib/predict";
 import { fmtDur, minutesBetween, n0 } from "@/lib/format";
 import { siteNeed } from "@/lib/match";
-import { cardTable } from "../ui";
+import { EmptyState, PageHeader, SectionHead, Stat } from "../ui";
+import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
 const TECH_BUDGET = 50_000; // ₦, platform only
 
 export default async function ImpactPage() {
   const event = await getActiveEvent();
-  if (!event) return <div className="empty">Create the event first on <Link className="underline" href="/event">Event & surplus</Link>.</div>;
+  if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
   const [batches, deliveries, sites] = await Promise.all([getBatches(event.id), getDeliveries(event.id), getSites()]);
 
   const recovered = batches.reduce((t, b) => t + b.qty, 0);
@@ -25,58 +26,57 @@ export default async function ImpactPage() {
   const bySite = sumBy(done, (d) => d.site_id, (d) => d.qty);
   const siteRows = sites.filter((s) => bySite.has(s.id));
   const predicted = predict(event).surplus;
+  const safePct = deliveredQty ? Math.round((100 * safeQty) / deliveredQty) : 0;
+
+  const summary = deliveredQty
+    ? `${event.name}: ${n0(deliveredQty)} portions reached ${siteRows.length} ${siteRows.length === 1 ? "site" : "sites"}, ${safePct}% inside the safe window, about ${fmtDur(avgMin)} from collection to delivery.`
+    : `${event.name}: no deliveries completed yet. This report fills in as volunteers mark deliveries as delivered.`;
 
   return (
     <>
-      <div>
-        <p className="eyebrow">After the event</p>
-        <h1 className="h1">Impact report · {event.name}</h1>
-        <p className="lede">Built from the platform’s own records. Volunteers enter nothing extra.</p>
+      <PageHeader eyebrow="After the event" title={`Impact report · ${event.name}`} description={summary} actions={<PrintButton />} />
+
+      <div className="grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-4">
+        <Stat label="Portions delivered" value={n0(deliveredQty)} hint={`of ${n0(recovered)} recovered · baseline 350 at Matriculation`} />
+        <Stat label="Delivered in safe window" value={deliveredQty ? `${safePct}%` : "—"} hint={`${n0(safeQty)} portions on time`} tone={deliveredQty ? (safePct >= 90 ? "green" : safePct >= 70 ? "orange" : "red") : undefined} />
+        <Stat label="Collection → delivery" value={deliveredQty ? fmtDur(avgMin) : "—"} hint="average, weighted by portions" />
+        <Stat label="Tech cost per meal" value={deliveredQty ? `₦${n0(TECH_BUDGET / deliveredQty)}` : "—"} hint="₦50,000 platform budget. Excludes packaging and transport." />
       </div>
-      <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
-        <Stat k="Portions delivered" v={n0(deliveredQty)} s={`of ${n0(recovered)} recovered · baseline 350 at Matriculation`} />
-        <Stat k="Delivered in safe window" v={deliveredQty ? `${Math.round((100 * safeQty) / deliveredQty)}%` : "—"} s={`${n0(safeQty)} portions on time`} />
-        <Stat k="Collection → delivery" v={deliveredQty ? fmtDur(avgMin) : "—"} s="average, weighted by portions" />
-        <Stat k="Tech cost per meal" v={deliveredQty ? `₦${n0(TECH_BUDGET / deliveredQty)}` : "—"} s="₦50,000 platform budget. Excludes packaging and transport." />
-      </div>
-      <div className="grid gap-7 md:grid-cols-2">
-        <section className="flex flex-col gap-3">
-          <h2 className="font-semibold">Where the food went</h2>
+
+      <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
+        <section className="flex flex-col gap-4">
+          <SectionHead title="Where the food went" aside="portions delivered vs need" />
           {siteRows.length === 0 ? <p className="text-sm text-muted">No deliveries completed yet.</p> : (
-            <table className={cardTable}>
-              <thead><tr><th className="th">Beneficiary</th><th className="th text-right">Portions</th><th className="th text-right">Need</th></tr></thead>
-              <tbody>
-                {siteRows.map((s) => (
-                  <tr key={s.id}>
-                    <td className="cell" data-label="Beneficiary">{s.name}</td>
-                    <td className="cell font-mono md:text-right" data-label="Portions">{bySite.get(s.id)}</td>
-                    <td className="cell font-mono md:text-right" data-label="Need">{siteNeed(s)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ul className="flex flex-col gap-5">
+              {siteRows.map((s) => {
+                const got = bySite.get(s.id) ?? 0;
+                const need = siteNeed(s);
+                const pct = need > 0 ? Math.round((100 * got) / need) : 0;
+                return (
+                  <li key={s.id}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <span className="font-medium">{s.name}</span>
+                      <span className="font-mono text-sm"><b className="font-semibold">{n0(got)}</b> <span className="text-muted">of {n0(need)} · {pct}%</span></span>
+                    </div>
+                    <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`${s.name}: ${got} of ${need} portions needed, ${pct}%`}>
+                      <i className={`block h-full rounded-full ${pct >= 100 ? "bg-ok" : "bg-sky"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
-        <section className="flex flex-col gap-3">
-          <h2 className="font-semibold">Prediction check</h2>
-          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-2 text-sm">
-            <dt className="text-muted">Predicted surplus</dt><dd className="font-medium">{n0(predicted)} meals</dd>
-            <dt className="text-muted">Actually recovered</dt><dd className="font-medium">{n0(recovered)} portions in {batches.length} batches</dd>
-            <dt className="text-muted">Delays reported</dt><dd className="font-medium">{delays}</dd>
+        <section className="flex flex-col gap-4">
+          <SectionHead title="Prediction check" />
+          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-3 text-[15px]">
+            <dt className="text-muted">Predicted surplus</dt><dd className="font-medium"><span className="font-mono">{n0(predicted)}</span> meals</dd>
+            <dt className="text-muted">Actually recovered</dt><dd className="font-medium"><span className="font-mono">{n0(recovered)}</span> portions in {batches.length} batches</dd>
+            <dt className="text-muted">Delays reported</dt><dd className="font-mono font-medium">{delays}</dd>
             <dt className="text-muted">Next step</dt><dd className="font-medium">Use the real surplus figure to recalibrate the {Math.round(predict(event).rate * 100)}% rate in lib/predict.ts.</dd>
           </dl>
         </section>
       </div>
     </>
-  );
-}
-
-function Stat({ k, v, s }: { k: string; v: string; s: string }) {
-  return (
-    <div className="border-t border-line pt-3.5">
-      <p className="stat-k">{k}</p>
-      <p className="stat-v">{v}</p>
-      <p className="stat-s">{s}</p>
-    </div>
   );
 }

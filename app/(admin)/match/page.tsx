@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { getActiveEvent, getBatches, getDeliveries, getSites, sumBy } from "@/lib/data";
+import { EmptyState, PageHeader } from "../ui";
 import { SitesEditor } from "./sites-editor";
 import { PlanPanel } from "./plan-panel";
 
 export default async function MatchPage() {
   const event = await getActiveEvent();
   if (!event) {
-    return <div className="empty">Create the event first on <Link className="underline" href="/event">Event & surplus</Link>.</div>;
+    return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
   }
   const [batches, sites, deliveries] = await Promise.all([getBatches(event.id), getSites(), getDeliveries(event.id)]);
   const sentByBatch = Object.fromEntries(sumBy(deliveries, (d) => d.batch_id, (d) => d.qty));
@@ -14,11 +15,11 @@ export default async function MatchPage() {
 
   return (
     <>
-      <div>
-        <p className="eyebrow">Steps 4–6 · Sites, match, route</p>
-        <h1 className="h1">Where should each portion go?</h1>
-        <p className="lede">Need is forecast from past distributions. Matching weighs need, distance, urgency and capacity, so perishable food goes to the nearest sites first.</p>
-      </div>
+      <PageHeader
+        eyebrow="Steps 4–6 · Sites, match, route"
+        title="Where should each portion go?"
+        description="Need is forecast from past distributions. Matching weighs need, distance, urgency and capacity, so perishable food goes to the nearest sites first."
+      />
       <SitesEditor sites={sites} />
       <PlanPanel batches={batches} sites={sites} sentByBatch={sentByBatch} sentBySite={sentBySite} />
     </>

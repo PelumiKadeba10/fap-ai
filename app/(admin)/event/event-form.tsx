@@ -4,6 +4,9 @@ import type { EventRow, EventType } from "@/lib/types";
 import { EVENT_TYPES, MEALS_PER_PERSON, predict } from "@/lib/predict";
 import { fmtTime, fromLagosInput, n0, toLagosInput } from "@/lib/format";
 import { saveEvent } from "../actions";
+import { Stat } from "../ui";
+import { useToast } from "../toast";
+import { Check, ChevronRight, Loader2 } from "lucide-react";
 
 export function EventForm({ event }: { event: EventRow | null }) {
   const [f, setF] = useState({
@@ -16,12 +19,11 @@ export function EventForm({ event }: { event: EventRow | null }) {
     meals_served: event?.meals_served ?? null,
     vendors: event?.vendors ?? 5,
   });
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const toast = useToast();
   const [pending, start] = useTransition();
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const v = e.target.value;
     setF((p) => ({ ...p, [k]: k === "name" || k === "type" || k === "starts" ? v : k === "meals_served" ? (v === "" ? null : Number(v)) : Number(v) }));
-    setMsg(null);
   };
 
   const p = useMemo(() => predict({ ...f, starts_at: fromLagosInput(f.starts) }), [f]);
@@ -29,14 +31,20 @@ export function EventForm({ event }: { event: EventRow | null }) {
   function onSave() {
     start(async () => {
       const r = await saveEvent({ id: event?.id, ...f, starts_at: fromLagosInput(f.starts) });
-      setMsg(r.ok ? { ok: true, text: "Event saved" } : { ok: false, text: r.error });
+      toast(r.ok, r.ok ? "Event saved" : r.error);
     });
   }
 
+  const steps = [
+    { t: p.volunteersBy, k: "Volunteers in place", s: "30 minutes before" },
+    { t: p.surplusFrom, k: "Surplus available", s: "when the event ends" },
+    { t: p.cookedDeliverBy, k: "Cooked food delivered by", s: "2-hour safe window" },
+  ];
+
   return (
-    <div className="grid gap-7 md:grid-cols-2">
-      <section className="flex flex-col gap-4">
-        <h2 className="font-semibold">Event</h2>
+    <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
+      <section className="flex flex-col gap-5">
+        <h2 className="h2">Event details</h2>
         <label className="label">Name<input id="ev-name" className="input" value={f.name} onChange={set("name")} /></label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="label">Event type
@@ -48,49 +56,58 @@ export function EventForm({ event }: { event: EventRow | null }) {
           <label className="label">Start (date and time)<input id="ev-start" className="input" type="datetime-local" value={f.starts} onChange={set("starts")} /></label>
           <label className="label">Duration (hours)<input id="ev-duration" className="input font-mono" type="number" min={1} max={24} step={0.5} value={f.duration_hours} onChange={set("duration_hours")} /></label>
         </div>
-        <details className="border-t border-line pt-3.5" open={!!(f.guests_per_student || f.meals_served || f.vendors !== 5)}>
-          <summary className="cursor-pointer text-sm font-medium">If you know more <span className="text-muted">(optional)</span></summary>
-          <div className="mt-3.5 grid gap-4 sm:grid-cols-2">
+        <details className="group border-t border-line pt-4" open={!!(f.guests_per_student || f.meals_served || f.vendors !== 5)}>
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+            If you know more <span className="font-normal text-muted">(optional)</span>
+          </summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="label">Guests per student<input id="ev-guests" className="input font-mono" type="number" min={0} max={10} step={0.5} value={f.guests_per_student} onChange={set("guests_per_student")} /></label>
             <label className="label">Meals to be served<input id="ev-meals" className="input font-mono" type="number" min={0} step={100} value={f.meals_served ?? ""} placeholder="Leave blank to estimate" onChange={set("meals_served")} /></label>
             <label className="label">Vendors / caterers<input id="ev-vendors" className="input font-mono" type="number" min={1} max={40} value={f.vendors} onChange={set("vendors")} /></label>
           </div>
         </details>
-        <div className="flex flex-wrap items-center gap-3">
-          <button className="btn-dark" onClick={onSave} disabled={pending}>{pending ? "Saving…" : event ? "Save changes" : "Create event"}</button>
-          {msg && <span className={`text-sm ${msg.ok ? "text-ok" : "text-crit"}`}>{msg.text}</span>}
-        </div>
       </section>
 
-      <section className="grid content-start gap-5 sm:grid-cols-2">
-        <div className="sm:col-span-2">
+      <section className="flex flex-col gap-7 md:row-span-2" aria-label="Prediction">
+        <div>
           <p className="stat-k">Predicted surplus</p>
-          <p className="text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{n0(p.surplus)} meals</p>
-          <p className="stat-s">Likely range {n0(p.low)}–{n0(p.high)}</p>
-          <p className="mt-2 text-sm text-muted">
-            {n0(p.people)} people · {n0(p.meals)} meals served {p.mealsKnown ? "(entered)" : `(estimated at ${MEALS_PER_PERSON} per person)`} · about {Math.round(p.rate * 100)}% of meals at a {EVENT_TYPES[f.type].label.toLowerCase()} go uneaten
+          <p className="mt-1.5 text-5xl leading-none font-semibold tracking-tight tabular-nums sm:text-6xl">{n0(p.surplus)} <span className="text-2xl font-medium text-muted sm:text-3xl">meals</span></p>
+          <p className="mt-2 text-sm text-muted">Likely range <span className="font-mono">{n0(p.low)}–{n0(p.high)}</span></p>
+          <p className="mt-3 text-sm text-muted">
+            <span className="font-mono">{n0(p.people)}</span> people · <span className="font-mono">{n0(p.meals)}</span> meals served {p.mealsKnown ? "(entered)" : `(estimated at ${MEALS_PER_PERSON} per person)`} · about {Math.round(p.rate * 100)}% of meals at a {EVENT_TYPES[f.type].label.toLowerCase()} go uneaten
           </p>
         </div>
-        <Stat k="Surplus available from" v={fmtTime(p.surplusFrom)} s="when the event ends" />
-        <Stat k="Volunteers in place by" v={fmtTime(p.volunteersBy)} s="30 minutes before" />
-        <p className="text-sm text-muted sm:col-span-2">
-          Cooked food collected at {fmtTime(p.surplusFrom)} must be delivered by about <b className="text-ink">{fmtTime(p.cookedDeliverBy)}</b> (2-hour safe window).
-        </p>
-        <Stat k="Volunteers needed" v={String(p.volunteers)} s="1 per 90 portions" />
-        <Stat k="Insulated carriers" v={String(p.carriers)} s="50 packs each" />
-        <Stat k="Vehicle trips" v={String(p.trips)} s="400 packs per trip" />
-        <Stat k="Collection points" v={String(p.collectionPoints)} s="one per vendor" />
-      </section>
-    </div>
-  );
-}
 
-function Stat({ k, v, s }: { k: string; v: string; s: string }) {
-  return (
-    <div className="border-t border-line pt-3.5">
-      <p className="stat-k">{k}</p>
-      <p className="stat-v">{v}</p>
-      <p className="stat-s">{s}</p>
+        <div>
+          <h3 className="mb-3 text-[13px] font-medium text-muted">Timing</h3>
+          <ol className="grid grid-cols-3">
+            {steps.map((x, i) => (
+              <li key={x.k} className="relative pt-5 pr-2">
+                <span className="absolute top-0 left-0 size-2.5 rounded-full bg-ink ring-4 ring-white" aria-hidden />
+                {i < steps.length - 1 && <span className="absolute top-[4px] left-2.5 h-px w-[calc(100%-10px)] bg-[#cfd5db]" aria-hidden />}
+                <p className="font-mono text-base font-medium tabular-nums">{fmtTime(x.t)}</p>
+                <p className="mt-0.5 text-[13px] leading-snug font-medium">{x.k}</p>
+                <p className="text-xs leading-snug text-muted">{x.s}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          <Stat label="Volunteers needed" value={String(p.volunteers)} hint="1 per 90 portions" />
+          <Stat label="Insulated carriers" value={String(p.carriers)} hint="50 packs each" />
+          <Stat label="Vehicle trips" value={String(p.trips)} hint="400 packs per trip" />
+          <Stat label="Collection points" value={String(p.collectionPoints)} hint="one per vendor" />
+        </div>
+      </section>
+
+      <div className="max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:border-t max-md:border-line max-md:bg-white/95 max-md:px-4 max-md:py-3 max-md:backdrop-blur">
+        <button className="btn-dark max-md:w-full" onClick={onSave} disabled={pending}>
+          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
+          {pending ? "Saving…" : event ? "Save changes" : "Create event"}
+        </button>
+      </div>
     </div>
   );
 }

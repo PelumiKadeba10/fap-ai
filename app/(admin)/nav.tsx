@@ -1,28 +1,40 @@
 "use client";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CalendarDays, ClipboardList, Map, Radio, FileBarChart } from "lucide-react";
 
 const TABS = [
-  ["/event", "Event & surplus"],
-  ["/intake", "Food intake"],
-  ["/match", "Match & route"],
-  ["/live", "Live dispatch"],
-  ["/impact", "Impact report"],
+  ["/event", "Event & surplus", CalendarDays],
+  ["/intake", "Food intake", ClipboardList],
+  ["/match", "Match & route", Map],
+  ["/live", "Live dispatch", Radio],
+  ["/impact", "Impact report", FileBarChart],
 ] as const;
 
 export function Nav() {
   const path = usePathname();
+  const active = useRef<HTMLAnchorElement>(null);
+
+  // On phones the tab strip scrolls sideways; keep the current tab in view.
+  useEffect(() => {
+    active.current?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [path]);
+
   return (
-    <nav className="mt-2 flex gap-6 overflow-x-auto border-b border-line [scrollbar-width:none]">
-      {TABS.map(([href, label], i) => {
+    <nav aria-label="Sections" className="no-print -mx-4 mt-1 flex gap-1 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:gap-2 sm:px-0 [scrollbar-width:none]">
+      {TABS.map(([href, label, Icon], i) => {
         const on = path.startsWith(href);
         return (
           <Link
             key={href}
+            ref={on ? active : undefined}
             href={href}
-            className={`-mb-px flex flex-none gap-1.5 border-b-2 pt-3.5 pb-3 text-sm font-medium ${on ? "border-ink text-ink" : "border-transparent text-muted"}`}
+            aria-current={on ? "page" : undefined}
+            className={`-mb-px flex flex-none items-center gap-2 border-b-2 px-2.5 pt-3.5 pb-3 text-sm font-medium transition-colors ${on ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"}`}
           >
-            <span className={`font-mono text-xs ${on ? "text-sky" : "text-[#b3bac2]"}`}>0{i + 1}</span>
+            <span className={`font-mono text-xs ${on ? "text-blue" : "text-[#8a929c]"}`}>0{i + 1}</span>
+            <Icon className="size-4" aria-hidden />
             {label}
           </Link>
         );

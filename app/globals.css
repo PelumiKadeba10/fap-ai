@@ -18,26 +18,57 @@
 
 /* Tailwind v4 only lets @apply reuse classes declared with @utility. */
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40;
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40;
 }
 
 html, body { background: #fff; color: var(--color-ink); }
-body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+html { scroll-behavior: smooth; }
+body { font-family: var(--font-sans); font-size: 15px; -webkit-font-smoothing: antialiased; }
+
+/* Visible keyboard focus everywhere. */
+:focus-visible { outline: 2px solid var(--color-sky); outline-offset: 2px; border-radius: 6px; }
 
 @layer components {
-  .wrap { @apply mx-auto max-w-[1120px] px-4 pb-16; }
-  .h1 { @apply text-2xl font-semibold tracking-tight sm:text-3xl; text-wrap: balance; }
-  .lede { @apply mt-1.5 max-w-[62ch] text-muted; }
-  .eyebrow { @apply mb-1.5 font-mono text-xs text-muted; }
+  .wrap { @apply mx-auto max-w-[1120px] px-4 pb-24 sm:px-6; }
+  .h1 { @apply text-[28px] leading-tight font-semibold tracking-tight sm:text-[30px]; text-wrap: balance; }
+  .h2 { @apply text-base font-semibold; }
+  .lede { @apply mt-2 max-w-[62ch] text-[15px] text-muted; }
+  .eyebrow { @apply mb-2 font-mono text-xs tracking-wide text-muted uppercase; }
   .label { @apply flex flex-col gap-1.5 text-[13px] font-medium text-muted; }
-  .input { @apply w-full rounded-lg border border-[#dde2e7] bg-white px-3 py-2 text-ink outline-none focus:border-sky focus:ring-2 focus:ring-sky/30; }
+  .input { @apply w-full rounded-lg border border-[#dde2e7] bg-white px-3 py-2 text-[15px] text-ink outline-none transition-colors placeholder:text-[#8a929c] hover:border-[#b9c1c9] focus:border-sky focus:ring-2 focus:ring-sky/30; }
+  /* Looks like text until hovered or focused (inline table editing). */
+  .input-quiet { @apply w-full rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[15px] text-ink outline-none transition-colors hover:border-[#dde2e7] focus:border-sky focus:bg-white focus:ring-2 focus:ring-sky/30 max-md:border-[#dde2e7] max-md:bg-white; }
   .btn-dark { @apply btn bg-ink text-white hover:bg-[#2a3038]; }
-  .btn-line { @apply btn border border-[#dde2e7] bg-white text-ink hover:border-[#b9c1c9]; }
-  .link { @apply text-[13px] text-muted underline underline-offset-4 hover:text-crit; }
+  .btn-line { @apply btn border border-[#dde2e7] bg-white text-ink hover:border-[#b9c1c9] hover:bg-soft; }
+  .link { @apply cursor-pointer text-[13px] text-muted underline underline-offset-4 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40; }
+  .link-danger { @apply cursor-pointer text-[13px] text-muted underline underline-offset-4 hover:text-crit disabled:cursor-not-allowed disabled:opacity-40; }
+  .chip { @apply inline-flex min-h-8 items-center gap-1.5 rounded-full border border-[#dde2e7] bg-white px-3 py-1 text-[13px] font-medium text-ink transition-colors hover:border-[#b9c1c9] hover:bg-soft; }
   .stat-k { @apply text-[13px] text-muted; }
-  .stat-v { @apply text-3xl font-semibold tabular-nums tracking-tight; }
+  .stat-v { @apply text-[32px] leading-none font-semibold tabular-nums tracking-tight sm:text-[40px]; }
   .stat-s { @apply text-xs text-muted; }
   .cell { @apply border-b border-line py-3 pr-3 align-middle; }
-  .th { @apply border-b border-line py-2 pr-3 text-left text-[12.5px] font-medium whitespace-nowrap text-muted; }
-  .empty { @apply rounded-xl bg-soft p-7 text-center text-muted; }
+  .th { @apply border-b border-line py-2 pr-3 text-left text-[13px] font-medium whitespace-nowrap text-muted; }
+  .empty { @apply flex flex-col items-center gap-2 rounded-xl border border-dashed border-[#dde2e7] px-6 py-9 text-center text-muted; }
+  .skel { @apply animate-pulse rounded-md bg-line; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.toast-in { animation: toast-in 0.18s ease-out; }
+
+@media print {
+  @page { margin: 14mm; }
+  .no-print, header, nav { display: none !important; }
+  body { font-size: 12px; }
+  main { padding-top: 0 !important; }
+  .wrap { max-width: none; padding: 0; }
+  section, tr, li { break-inside: avoid; }
 }
