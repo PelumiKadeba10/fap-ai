@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getPhotoUrls, sumBy } from "@/lib/data";
 import { EmptyState, PageHeader } from "../ui";
 import { IntakeBox } from "./intake-box";
 import { BatchTable } from "./batch-table";
@@ -17,6 +17,7 @@ export default async function IntakePage() {
     getCollectionPoints(event.id),
     getDeliveries(event.id),
   ]);
+  const photos = await getPhotoUrls([...approved, ...pending]);
   const sent = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
 
   return (
@@ -26,9 +27,9 @@ export default async function IntakePage() {
         title="Volunteers text it. FAP AI files it."
         description="Check food reported from collection points, or paste a volunteer’s message. FAP AI turns it into a record you can check before it is matched, and scores its urgency."
       />
-      <NeedsChecking eventId={event.id} batches={pending} pointNames={Object.fromEntries(points.map((p) => [p.id, p.name]))} />
+      <NeedsChecking eventId={event.id} batches={pending} pointNames={Object.fromEntries(points.map((p) => [p.id, p.name]))} photos={photos} />
       <IntakeBox />
-      <BatchTable batches={approved} sent={Object.fromEntries(sent)} />
+      <BatchTable batches={approved} sent={Object.fromEntries(sent)} photos={photos} />
       <CollectionPoints points={points} siteUrl={process.env.SITE_URL ?? ""} />
     </>
   );

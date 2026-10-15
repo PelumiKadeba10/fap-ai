@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { createClient } from "./supabase/server";
 import { EVENT_COOKIE } from "./event-cookie";
 import { foodWaiting, type FoodWaiting } from "./food-waiting";
+import { PHOTO_BUCKET } from "./photo";
 import type { Batch, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Volunteer } from "./types";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
@@ -79,4 +80,15 @@ export function sumBy<T>(rows: T[], key: (r: T) => string, qty: (r: T) => number
   const m = new Map<string, number>();
   for (const r of rows) m.set(key(r), (m.get(key(r)) ?? 0) + qty(r));
   return m;
+}
+
+/** One-hour signed URLs for batch photos, keyed by batch id. Uses the signed-in coordinator's session (private bucket). */
+export async function getPhotoUrls(batches: { id: string; photo_path: string | null }[]): Promise<Record<string, string>> {
+  const withPhoto = batches.filter((b) => b.photo_path);
+  if (!withPhoto.length) return {};
+  const supabase = await createClient();
+  const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(withPhoto.map((b) => b.photo_path!), 3600);
+  const out: Record<string, string> = {};
+  withPhoto.forEach((b, i) => { const u = data?.[i]; if (u?.signedUrl && !u.error) out[b.id] = u.signedUrl; });
+  return out;
 }

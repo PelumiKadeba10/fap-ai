@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { PHOTO_BUCKET } from "@/lib/photo";
 import { getActiveEvent, getBatches, getDeliveries, getSites, sumBy } from "@/lib/data";
 import { lagosTimeToday } from "@/lib/format";
 import { runMatching } from "@/lib/match";
@@ -73,6 +75,13 @@ export async function selectEvent(id: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Removes a batch photo from private storage (service role: coordinators have no delete policy). Never blocks the caller. */
+async function deletePhoto(path: string | null | undefined) {
+  if (!path) return;
+  const { error } = await createAdminClient().storage.from(PHOTO_BUCKET).remove([path]);
+  if (error) console.error("Photo delete failed", error);
+}
+
 /* ---------- Batches ---------- */
 
 const BatchInput = z.object({
@@ -111,8 +120,10 @@ export async function removeBatch(id: string): Promise<Result> {
   const supabase = await db();
   const { count } = await supabase.from("deliveries").select("id", { count: "exact", head: true }).eq("batch_id", id);
   if (count) return { ok: false, error: "This batch is already out for delivery and can’t be removed." };
+  const { data: row } = await supabase.from("batches").select("photo_path").eq("id", id).maybeSingle();
   const { error } = await supabase.from("batches").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+  await deletePhoto(row?.photo_path);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -151,8 +162,10 @@ export async function confirmBatch(id: string, input: z.input<typeof BatchEdit>)
 export async function discardBatch(id: string): Promise<Result> {
   if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown batch." };
   const supabase = await db();
+  const { data: row } = await supabase.from("batches").select("photo_path").eq("id", id).eq("review_status", "pending").maybeSingle();
   const { error } = await supabase.from("batches").delete().eq("id", id).eq("review_status", "pending");
   if (error) return { ok: false, error: error.message };
+  await deletePhoto(row?.photo_path);
   revalidatePath("/", "layout");
   return { ok: true };
 }

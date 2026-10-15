@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getDeliveries, getSites, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getDeliveries, getPhotoUrls, getSites, sumBy } from "@/lib/data";
 import { predict } from "@/lib/predict";
-import { fmtDur, minutesBetween, n0 } from "@/lib/format";
+import { fmtDur, fmtTime, minutesBetween, n0 } from "@/lib/format";
 import { siteNeed } from "@/lib/match";
 import { EmptyState, PageHeader, SectionHead, Stat } from "../ui";
 import { PrintButton } from "./print-button";
+import { PhotoThumb } from "../photo-viewer";
 
 export const dynamic = "force-dynamic";
 const TECH_BUDGET = 50_000; // ₦, platform only
@@ -26,6 +27,8 @@ export default async function ImpactPage() {
   const bySite = sumBy(done, (d) => d.site_id, (d) => d.qty);
   const siteRows = sites.filter((s) => bySite.has(s.id));
   const predicted = predict(event).surplus;
+  const gallery = batches.filter((b) => b.photo_path).sort((a, b) => +new Date(b.collected_at) - +new Date(a.collected_at)).slice(0, 24);
+  const photoUrls = await getPhotoUrls(gallery);
   const safePct = deliveredQty ? Math.round((100 * safeQty) / deliveredQty) : 0;
 
   const summary = deliveredQty
@@ -77,6 +80,20 @@ export default async function ImpactPage() {
           </dl>
         </section>
       </div>
+      {gallery.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <SectionHead title="Photos from tonight" aside={`${gallery.length} shown`} />
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+            {gallery.filter((b) => photoUrls[b.id]).map((b) => (
+              <li key={b.id} className="flex flex-col gap-1.5">
+                <PhotoThumb src={photoUrls[b.id]} label={`${b.food}, ${b.qty} portions, ${fmtTime(b.collected_at)}`} size={200} />
+                <p className="text-sm leading-snug font-medium">{b.food}</p>
+                <p className="font-mono text-xs text-muted">{b.qty} portions · {fmtTime(b.collected_at)}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }

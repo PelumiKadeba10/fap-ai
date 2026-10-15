@@ -6,9 +6,10 @@ import { fmtDur, fmtTime, n0 } from "@/lib/format";
 import { removeBatch } from "../actions";
 import { EmptyState, SectionHead, UrgencyPill, cardTable } from "../ui";
 import { useToast } from "../toast";
+import { PhotoIcon } from "../photo-viewer";
 import { PackageOpen } from "lucide-react";
 
-export function BatchTable({ batches, sent }: { batches: Batch[]; sent: Record<string, number> }) {
+export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: Record<string, number>; photos: Record<string, string> }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const now = new Date();
@@ -31,7 +32,7 @@ export function BatchTable({ batches, sent }: { batches: Batch[]; sent: Record<s
               const out = sent[b.id] ?? 0;
               return (
                 <tr key={b.id}>
-                  <td className="cell" data-label="Food"><b className="font-semibold">{b.food}</b><div className="text-[13px] text-muted">{CATEGORIES[b.category].label}{b.condition ? ` · ${b.condition}` : ""}</div></td>
+                  <td className="cell" data-label="Food"><b className="font-semibold">{b.food}</b>{photos[b.id] && <span className="ml-1 inline-block align-middle"><PhotoIcon src={photos[b.id]} label={`${b.food}, ${b.location}`} /></span>}<div className="text-[13px] text-muted">{CATEGORIES[b.category].label}{b.condition ? ` · ${b.condition}` : ""}</div></td>
                   <td className="cell font-mono md:text-right" data-label="Portions">{n0(b.qty)}</td>
                   <td className="cell font-mono" data-label="Sent out">{out ? `${n0(out)}` : "—"}</td>
                   <td className="cell font-mono" data-label="Collected">{fmtTime(b.collected_at)}</td>

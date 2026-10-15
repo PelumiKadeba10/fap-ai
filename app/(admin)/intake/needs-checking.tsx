@@ -9,9 +9,10 @@ import { createClient } from "@/lib/supabase/client";
 import { confirmBatch, discardBatch } from "../actions";
 import { Badge, EmptyState, Pill } from "../ui";
 import { useToast } from "../toast";
+import { PhotoThumb } from "../photo-viewer";
 
 /** Food reported through collection links, waiting for a coordinator to check it. Updates live. */
-export function NeedsChecking({ eventId, batches, pointNames }: { eventId: string; batches: Batch[]; pointNames: Record<string, string> }) {
+export function NeedsChecking({ eventId, batches, pointNames, photos }: { eventId: string; batches: Batch[]; pointNames: Record<string, string>; photos: Record<string, string> }) {
   const router = useRouter();
 
   useEffect(() => {
@@ -35,14 +36,14 @@ export function NeedsChecking({ eventId, batches, pointNames }: { eventId: strin
         <EmptyState icon={Inbox}>Nothing waiting. Food reported through collection links shows up here.</EmptyState>
       ) : (
         <ul className="flex flex-col">
-          {newest.map((b) => <PendingItem key={b.id} batch={b} point={b.collection_point_id ? pointNames[b.collection_point_id] : undefined} />)}
+          {newest.map((b) => <PendingItem key={b.id} batch={b} photo={photos[b.id]} point={b.collection_point_id ? pointNames[b.collection_point_id] : undefined} />)}
         </ul>
       )}
     </section>
   );
 }
 
-function PendingItem({ batch: b, point }: { batch: Batch; point?: string }) {
+function PendingItem({ batch: b, point, photo }: { batch: Batch; point?: string; photo?: string }) {
   const toast = useToast();
   const startTime = toLagosInput(b.collected_at).slice(11);
   const [d, setD] = useState({ food: b.food, qty: b.qty, category: b.category as Category, time: startTime, location: b.location, condition: b.condition ?? "", notes: b.notes ?? "" });
@@ -67,7 +68,12 @@ function PendingItem({ batch: b, point }: { batch: Batch; point?: string }) {
         {b.parsed_by && <Badge>{b.parsed_by === "claude" ? "Read by Claude" : "Offline parser"}</Badge>}
         {unclear && <Pill tone="orange">Needs a quantity</Pill>}
       </div>
-      {b.raw_message && <blockquote className="rounded-lg bg-soft px-3 py-2.5 text-sm break-words">{b.raw_message}</blockquote>}
+      {(b.raw_message || photo) && (
+        <div className="flex items-start gap-3">
+          {photo && <PhotoThumb src={photo} label={`${b.food}, ${point ?? "collection point"}`} />}
+          {b.raw_message && <blockquote className="min-w-0 flex-1 rounded-lg bg-soft px-3 py-2.5 text-sm break-words">{b.raw_message}</blockquote>}
+        </div>
+      )}
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="label sm:col-span-2">Food<input className="input" value={d.food} onChange={(e) => set("food", e.target.value)} /></label>
         <label className="label">Portions<input className="input font-mono" type="number" min={1} value={d.qty || ""} onChange={(e) => set("qty", Number(e.target.value))} /></label>

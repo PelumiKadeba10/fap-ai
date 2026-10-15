@@ -57,6 +57,7 @@ export interface Batch {
   parsed_by: "claude" | "local" | "manual" | null;
   review_status: ReviewStatus;
   collection_point_id: string | null;
+  photo_path: string | null;
   created_at: string;
 }
 

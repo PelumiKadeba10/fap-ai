@@ -105,3 +105,15 @@ test("food waiting counts approved portions not yet in deliveries and ignores un
   // Over-allocated batches never go negative.
   assert.deepEqual(foodWaiting([{ id: "a", qty: 10 }], [{ batch_id: "a", qty: 30 }]), { portions: 0, batches: 0 });
 });
+
+test("photo validation accepts jpg/png/webp up to 4 MB and rejects the rest", async () => {
+  const { photoExt, photoPath } = await import("../lib/photo");
+  assert.equal(photoExt("image/jpeg", 300_000), "jpg");
+  assert.equal(photoExt("image/png", 4 * 1024 * 1024), "png");
+  assert.equal(photoExt("image/webp", 1), "webp");
+  assert.equal(photoExt("image/png", 4 * 1024 * 1024 + 1), null);
+  assert.equal(photoExt("image/heic", 1000), null);
+  assert.equal(photoExt("application/pdf", 1000), null);
+  assert.equal(photoExt("image/jpeg", 0), null);
+  assert.equal(photoPath("e1", "b1", "jpg"), "e1/b1.jpg");
+});

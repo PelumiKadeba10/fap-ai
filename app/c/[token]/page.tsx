@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fmtTime } from "@/lib/format";
 import { submitFood } from "./actions";
+import { PhotoInput } from "./photo-input";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Report food · FAP AI", robots: { index: false } };
 
 type Point = { id: string; name: string; active: boolean; events: { name: string } | null };
-type Sub = { id: string; food: string; qty: number; notes: string | null; review_status: "pending" | "approved"; created_at: string };
+type Sub = { id: string; food: string; qty: number; notes: string | null; review_status: "pending" | "approved"; photo_path: string | null; created_at: string };
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-export default async function CollectionPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ e?: string; ok?: string }> }) {
+export default async function CollectionPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ e?: string; ok?: string; photo?: string }> }) {
   const { token } = await params;
-  const { e, ok } = await searchParams;
+  const { e, ok, photo } = await searchParams;
   const db = createAdminClient();
   const { data: cp } = /^[a-f0-9]{32}$/.test(token)
     ? await db.from("collection_points").select("id, name, active, events(name)").eq("token", token).maybeSingle<Point>()
@@ -38,9 +39,9 @@ export default async function CollectionPage({ params, searchParams }: { params:
   }
 
   const [{ data: subs }, sent] = await Promise.all([
-    db.from("batches").select("id, food, qty, notes, review_status, created_at").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).limit(5).returns<Sub[]>(),
+    db.from("batches").select("id, food, qty, notes, review_status, photo_path, created_at").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).limit(5).returns<Sub[]>(),
     ok && UUID.test(ok)
-      ? db.from("batches").select("id, food, qty, notes, review_status, created_at").eq("id", ok).eq("collection_point_id", cp.id).maybeSingle<Sub>()
+      ? db.from("batches").select("id, food, qty, notes, review_status, photo_path, created_at").eq("id", ok).eq("collection_point_id", cp.id).maybeSingle<Sub>()
       : Promise.resolve({ data: null }),
   ]);
   const banner = sent.data;
@@ -56,7 +57,10 @@ export default async function CollectionPage({ params, searchParams }: { params:
       {banner && (
         <p role="status" className="flex items-start gap-2 rounded-xl border-2 border-ok bg-[#e9f6ee] px-4 py-3 text-base font-medium text-[#14633a]">
           <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden />
-          {unclear ? "Sent, but we couldn’t find a quantity. The coordinator will check it." : `Sent: ${banner.qty} ${banner.food}. The coordinator will confirm it.`}
+          <span>
+            {unclear ? "Sent, but we couldn’t find a quantity. The coordinator will check it." : `Sent: ${banner.qty} ${banner.food}. The coordinator will confirm it.`}
+            {photo === "skipped" && <span className="mt-1 block text-[#6b4a08]">Photo not saved: use a JPG or PNG under 4 MB.</span>}
+          </span>
         </p>
       )}
       {e && (
@@ -74,6 +78,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
           className="min-h-40 w-full rounded-xl border-2 border-ink bg-white p-3 text-lg text-ink placeholder:text-[#6b7480]"
         />
         <p className="text-sm text-[#4a525c]">Say what it is, how many, and when it was packed.</p>
+        <PhotoInput />
         <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Send</button>
       </form>
 
@@ -86,7 +91,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
             {subs.map((s) => (
               <li key={s.id} className="flex items-start justify-between gap-3 border-b border-line py-3">
                 <div className="min-w-0">
-                  <p className="font-semibold break-words">{s.qty} {s.food}</p>
+                  <p className="font-semibold break-words">{s.qty} {s.food}{s.photo_path && <Camera className="ml-1.5 inline size-4 align-text-bottom text-[#4a525c]" aria-label="Has a photo" role="img" />}</p>
                   <p className="font-mono text-sm text-[#4a525c]">{fmtTime(s.created_at)}</p>
                 </div>
                 <span className={`shrink-0 text-sm font-semibold ${s.review_status === "approved" ? "text-ok" : "text-warn"}`}>
