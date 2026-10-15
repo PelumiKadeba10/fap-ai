@@ -71,7 +71,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
       const r = await approveTrips(busFor);
       setConfirming(false);
       if (!r.ok) return toast(false, r.error);
-      toast(true, `${r.created} ${r.created === 1 ? "trip" : "trips"} created. Use Notify lead on Live dispatch to tell each bus lead.`);
+      toast(true, `${r.created} ${r.created === 1 ? "trip" : "trips"} created. Use Notify lead on Live to tell each bus lead.`);
       setNow(null);
       router.refresh();
     });
@@ -118,10 +118,6 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
               Each bus loads at one hub and visits several sites. Trips are planned for buses of up to <span className="font-mono">{capacity}</span> packs.
               Coordinators approve every plan before bus leads are told.
             </p>
-            {buses.filter((b) => b.active).length === 0 && (
-              <p className="text-sm font-medium text-warn">No buses yet. Add them under <Link href="/live" className="underline underline-offset-4">Live dispatch</Link>; trips are planned for {capacity} packs meanwhile.</p>
-            )}
-
             <div className="flex flex-wrap items-center gap-3">
               <button className={plan ? "btn-line" : "btn-dark"} onClick={run} disabled={!available || pending}>
                 {plan ? <RotateCw className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
@@ -138,7 +134,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
               <div role="alertdialog" aria-labelledby="confirm-t" className="flex flex-col gap-3 rounded-xl border border-ink p-4">
                 <div>
                   <p id="confirm-t" className="font-semibold">Create {count} {count === 1 ? "trip" : "trips"}?</p>
-                  <p className="mt-0.5 text-sm text-muted">This reserves the food and adds each trip to Live dispatch. Bus leads are notified next from Live dispatch. Nothing is sent automatically.</p>
+                  <p className="mt-0.5 text-sm text-muted">This reserves the food and adds each trip to Live. Bus leads are notified next from Live. Nothing is sent automatically.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                   <button className="btn-dark" onClick={approve} disabled={pending} autoFocus>

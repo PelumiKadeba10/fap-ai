@@ -9,7 +9,7 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader
-        eyebrow={creating ? "New event" : "Step 1 · Before the event"}
+        eyebrow={creating ? "New event" : undefined}
         title={creating ? "New event" : "How much food will be left over?"}
         description={creating
           ? "Its food, deliveries and impact report are kept separate from your other events."

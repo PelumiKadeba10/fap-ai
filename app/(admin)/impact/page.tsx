@@ -39,11 +39,11 @@ export default async function ImpactPage() {
 
   const summary = deliveredQty
     ? `${event.name}: ${n0(deliveredQty)} portions reached ${siteRows.length} ${siteRows.length === 1 ? "site" : "sites"}, ${safePct}% inside the safe window, about ${fmtDur(avgMin)} from collection to delivery.`
-    : `${event.name}: no deliveries completed yet. This report fills in as volunteers mark deliveries as delivered.`;
+    : `${event.name}: no deliveries completed yet. This report fills in as bus leads mark stops as delivered.`;
 
   return (
     <>
-      <PageHeader eyebrow="After the event" title={`Impact report · ${event.name}`} description={summary} actions={<PrintButton />} />
+      <PageHeader title={`Impact · ${event.name}`} description={summary} actions={<PrintButton />} />
 
       <div className="grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-4">
         <Stat label="Portions delivered" value={n0(deliveredQty)} hint={`of ${n0(recovered)} recovered · baseline 350 at Matriculation`} />

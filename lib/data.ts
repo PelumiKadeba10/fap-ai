@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "./supabase/server";
 import { EVENT_COOKIE } from "./event-cookie";
-import { foodWaiting, type FoodWaiting } from "./food-waiting";
+import { foodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
 import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
@@ -43,8 +43,10 @@ export async function getCollectionPoints(eventId: string): Promise<CollectionPo
   return (data ?? []) as CollectionPoint[];
 }
 
-/** Approved food not yet in a delivery, plus how many unchecked batches are waiting on Food intake. */
-export async function getFoodWaiting(eventId: string): Promise<FoodWaiting & { pending: number }> {
+export type EventCounts = { pending: number; waiting: number; waitingBatches: number };
+
+/** Waiting work for the nav badges: batches to check on Food intake, and approved portions not yet on a trip. */
+export async function getEventCounts(eventId: string): Promise<EventCounts> {
   const supabase = await createClient();
   const [b, d] = await Promise.all([
     supabase.from("batches").select("id, qty, review_status").eq("event_id", eventId),
@@ -52,7 +54,8 @@ export async function getFoodWaiting(eventId: string): Promise<FoodWaiting & { p
   ]);
   const batches = (b.data ?? []) as { id: string; qty: number; review_status: ReviewStatus }[];
   const deliveries = (d.data ?? []) as { batch_id: string; qty: number }[];
-  return { ...foodWaiting(batches, deliveries), pending: batches.filter((x) => x.review_status === "pending").length };
+  const w = foodWaiting(batches, deliveries);
+  return { pending: batches.filter((x) => x.review_status === "pending").length, waiting: w.portions, waitingBatches: w.batches };
 }
 
 export async function getSites(): Promise<Site[]> {

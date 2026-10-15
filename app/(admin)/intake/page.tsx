@@ -24,7 +24,6 @@ export default async function IntakePage() {
   return (
     <>
       <PageHeader
-        eyebrow="Steps 2 & 3 · During the event"
         title="Check what the hubs send."
         description="Each hub reports food from its own link. Check every submission before it is matched. FAP AI reads the message and scores its urgency."
       />

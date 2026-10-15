@@ -3,7 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bus as BusIcon, ClipboardList, Soup } from "lucide-react";
-import type { Batch, Bus, BusLink, CollectionPoint, Delivery, DeliveryStatus, Site, Trip, Volunteer } from "@/lib/types";
+import type { Batch, Bus, BusLink, CollectionPoint, Delivery, DeliveryStatus, Site, Trip } from "@/lib/types";
 import { ATTENTION_MIN, STATUS } from "@/lib/status";
 import { ACTIVE_TRIP, freeBuses, groupStops, stopAlerts } from "@/lib/trip-status";
 import { waitingByHub } from "@/lib/food-waiting";
@@ -13,16 +13,14 @@ import { setStopStatusAsStaff, setTripBus, setTripStatusAsStaff } from "../actio
 import { EmptyState, Pill, SectionHead, Stat } from "../ui";
 import { useToast } from "../toast";
 import { BusCard } from "./bus-card";
-import { BusesManager } from "./buses-manager";
-import { DirectDeliveries } from "./direct-deliveries";
 
 type Update = { id: number; delivery_id: string; status: string; note: string | null; created_at: string };
 
 const RANK: Record<string, number> = { departed: 0, loading: 1, planned: 2, free: 3, returned: 4 };
 
-export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, batches, sites, volunteers, updates, siteUrl }: {
+export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, batches, sites, updates, siteUrl }: {
   eventId: string; trips: Trip[]; buses: Bus[]; busLinks: Pick<BusLink, "bus_id" | "token">[]; hubs: Pick<CollectionPoint, "id" | "name">[]; deliveries: Delivery[];
-  batches: Batch[]; sites: Site[]; volunteers: Volunteer[]; updates: Update[]; siteUrl: string;
+  batches: Batch[]; sites: Site[]; updates: Update[]; siteUrl: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -54,7 +52,6 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
 
   const tripDeliveries = (t: Trip) => deliveries.filter((d) => d.trip_id === t.id);
   const stopsOf = (t: Trip) => groupStops(tripDeliveries(t));
-  const direct = deliveries.filter((d) => !d.trip_id);
 
   const live = trips.filter((t) => t.status !== "cancelled");
   const free = freeBuses(buses, trips);
@@ -121,9 +118,9 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
       </section>
 
       <section className="flex flex-col gap-4">
-        <SectionHead title="Buses" aside={<>Updated {fmtTime(now)} · refreshes live</>} />
+        <SectionHead title="Buses" aside={<>Updated {fmtTime(now)} · refreshes live · <Link href="/setup" className="underline underline-offset-4">Manage buses</Link></>} />
         {cards.length === 0 ? (
-          <EmptyState icon={BusIcon} action={<Link href="/match">Go to Match & route</Link>}>No buses or trips yet. Add buses below, then plan trips.</EmptyState>
+          <EmptyState icon={BusIcon} action={<Link href="/setup">Manage buses</Link>}>No buses or trips yet. Add buses in Setup, then plan trips.</EmptyState>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {cards.map(({ key, bus, trip }) => trip ? (
@@ -150,7 +147,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
         )}
       </section>
 
-      <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
+      <div>
         <section className="flex flex-col gap-4">
           <SectionHead title="Latest updates" />
           {updates.length === 0 ? <p className="text-sm text-muted">No updates yet.</p> : (
@@ -158,7 +155,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
               {updates.map((u) => {
                 const d = deliveryTrip.get(u.delivery_id);
                 const trip = d?.trip_id ? trips.find((t) => t.id === d.trip_id) : null;
-                const who = trip ? (trip.bus_id ? busById.get(trip.bus_id)?.name : null) ?? "Bus" : d?.volunteer_id ? volunteers.find((v) => v.id === d.volunteer_id)?.name ?? "Volunteer" : "Volunteer";
+                const who = trip ? (trip.bus_id ? busById.get(trip.bus_id)?.name : null) ?? "Bus" : "Bus";
                 return (
                   <li key={u.id} className="relative pb-3.5">
                     <span className="absolute top-[7px] -left-[20.5px] size-2 rounded-full bg-[#b3bac2] ring-4 ring-white" aria-hidden />
@@ -171,10 +168,8 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
             </ol>
           )}
         </section>
-        <BusesManager buses={buses} busyIds={trips.filter((t) => ACTIVE_TRIP.includes(t.status) && t.bus_id).map((t) => t.bus_id as string)} />
       </div>
 
-      <DirectDeliveries deliveries={direct} batches={batches} sites={sites} volunteers={volunteers} now={now} origin={origin} />
     </>
   );
 }

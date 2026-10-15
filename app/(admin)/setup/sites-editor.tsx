@@ -25,7 +25,7 @@ export function SitesEditor({ sites }: { sites: Site[] }) {
 
   return (
     <section className="flex flex-col gap-4">
-      <SectionHead title="Beneficiary sites" aside="Changes save when you leave a field" />
+      <SectionHead title="Places" aside="Beneficiary sites. Changes save when you leave a field." />
       <table className={cardTable}>
         <thead>
           <tr><th className="th">Site</th><th className="th">Type</th><th className="th">People to feed</th><th className="th">Road km</th><th className="th">Direction</th><th className="th">Contact phone</th><th className="th"><span className="sr-only">Actions</span></th></tr>
