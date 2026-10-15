@@ -37,7 +37,7 @@ export function CollectionPoints({ points, siteUrl }: { points: CollectionPoint[
   }
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="cp-title">
+    <section id="collection-points" className="flex scroll-mt-24 flex-col gap-4" aria-labelledby="cp-title">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="cp-title" className="h2">Collection points</h2>
         <span className="text-[13px] text-muted">Each lead gets a link to report food from their phone. No login needed.</span>

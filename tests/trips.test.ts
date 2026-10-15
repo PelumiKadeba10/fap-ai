@@ -169,3 +169,12 @@ test("impact totals per hub and per bus", async () => {
   );
   assert.deepEqual(totals, [{ busId: "bus1", trips: 2, packs: 200, stops: 2, onTimePct: 75 }]);
 });
+
+test("an event is live from its start until duration plus 6 hours", async () => {
+  const { eventPhase } = await import("../lib/overview");
+  const e = { starts_at: "2026-10-30T13:00:00Z", duration_hours: 6 };
+  assert.equal(eventPhase(e, new Date("2026-10-30T12:59:00Z")), "upcoming");
+  assert.equal(eventPhase(e, new Date("2026-10-30T13:00:00Z")), "live");
+  assert.equal(eventPhase(e, new Date("2026-10-31T01:00:00Z")), "live");
+  assert.equal(eventPhase(e, new Date("2026-10-31T01:01:00Z")), "past");
+});

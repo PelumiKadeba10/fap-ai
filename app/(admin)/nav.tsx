@@ -26,6 +26,9 @@ export function Nav({ badges = {} }: { badges?: Record<string, number> }) {
     active.current?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [path]);
 
+  // The overview at "/" is outside any event, so it has no tabs.
+  if (path === "/") return null;
+
   return (
     <nav aria-label="Sections" className="no-print hidden md:flex -mx-4 mt-1 gap-1 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:gap-2 sm:px-0 [scrollbar-width:none]">
       {TABS.map(([href, label, Icon], i) => {

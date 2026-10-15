@@ -3,7 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bus as BusIcon, ClipboardList, Soup } from "lucide-react";
-import type { Batch, Bus, CollectionPoint, Delivery, DeliveryStatus, Site, Trip, Volunteer } from "@/lib/types";
+import type { Batch, Bus, BusLink, CollectionPoint, Delivery, DeliveryStatus, Site, Trip, Volunteer } from "@/lib/types";
 import { ATTENTION_MIN, STATUS } from "@/lib/status";
 import { ACTIVE_TRIP, freeBuses, groupStops, stopAlerts } from "@/lib/trip-status";
 import { waitingByHub } from "@/lib/food-waiting";
@@ -20,8 +20,8 @@ type Update = { id: number; delivery_id: string; status: string; note: string | 
 
 const RANK: Record<string, number> = { departed: 0, loading: 1, planned: 2, free: 3, returned: 4 };
 
-export function LiveBoard({ eventId, trips, buses, hubs, deliveries, batches, sites, volunteers, updates, siteUrl }: {
-  eventId: string; trips: Trip[]; buses: Bus[]; hubs: Pick<CollectionPoint, "id" | "name">[]; deliveries: Delivery[];
+export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, batches, sites, volunteers, updates, siteUrl }: {
+  eventId: string; trips: Trip[]; buses: Bus[]; busLinks: Pick<BusLink, "bus_id" | "token">[]; hubs: Pick<CollectionPoint, "id" | "name">[]; deliveries: Delivery[];
   batches: Batch[]; sites: Site[]; volunteers: Volunteer[]; updates: Update[]; siteUrl: string;
 }) {
   const router = useRouter();
@@ -77,8 +77,14 @@ export function LiveBoard({ eventId, trips, buses, hubs, deliveries, batches, si
   const waitingHubs = Object.entries(waiting).sort((a, b) => b[1].portions - a[1].portions);
   const loadable = new Set(live.filter((t) => t.status === "planned" || t.status === "loading").map((t) => t.hub_id ?? "none"));
 
-  async function copy(t: Trip) {
-    try { await navigator.clipboard.writeText(`${origin}/b/${t.token}`); setCopied(t.id); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
+  // One link per bus for the whole event.
+  const linkFor = (busId: string | null) => {
+    const l = busId ? busLinks.find((x) => x.bus_id === busId) : null;
+    return l ? `${origin}/b/${l.token}` : null;
+  };
+
+  async function copy(t: Trip, url: string) {
+    try { await navigator.clipboard.writeText(url); setCopied(t.id); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
   }
 
   const deliveryTrip = new Map(deliveries.map((d) => [d.id, d]));
@@ -125,8 +131,8 @@ export function LiveBoard({ eventId, trips, buses, hubs, deliveries, batches, si
                 key={key} trip={trip} bus={bus} hubName={hubName(trip.hub_id)} stops={stopsOf(trip)} now={now}
                 foodName={(id) => batchById.get(id)?.food ?? "Food"} siteName={(id) => siteById.get(id)?.name ?? "Site"}
                 pickable={[...free, ...(bus && !free.some((f) => f.id === bus.id) ? [bus] : [])]}
-                link={`${origin}/b/${trip.token}`} copied={copied === trip.id} busy={pending}
-                onCopy={() => copy(trip)}
+                link={linkFor(trip.bus_id)} copied={copied === trip.id} busy={pending}
+                onCopy={() => { const u = linkFor(trip.bus_id); if (u) copy(trip, u); }}
                 onBus={(id) => run(() => setTripBus(trip.id, id))}
                 onTripStatus={(to) => run(() => setTripStatusAsStaff(trip.id, to))}
                 onStop={(order, to) => run(() => setStopStatusAsStaff(trip.id, order, to))}

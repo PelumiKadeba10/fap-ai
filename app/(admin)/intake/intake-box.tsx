@@ -1,12 +1,12 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { Category, CollectionPoint, ParsedRecord } from "@/lib/types";
 import { CATEGORIES, urgency } from "@/lib/urgency";
 import { fmtDur, fmtTime, lagosTimeToday } from "@/lib/format";
 import { addBatch } from "../actions";
 import { Badge, EmptyState, UrgencyPill } from "../ui";
 import { useToast } from "../toast";
-import { Bot, FileText, Loader2, MessageSquareText, PenLine, Save, Sparkles } from "lucide-react";
+import { Bot, FileText, Loader2, MessageSquareText, PenLine, Save, Sparkles, X } from "lucide-react";
 
 const EXAMPLES = [
   "350 jollof rice and chicken, packed 8:15pm at Convocation Centre, still hot",
@@ -47,6 +47,21 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
     }
   }
 
+  function cancel() {
+    setRec(null);
+    setMessage("");
+    setHubId("");
+    setError("");
+  }
+
+  // Escape closes the record form (e.g. an "Enter manually" form opened by mistake).
+  useEffect(() => {
+    if (!rec) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") cancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rec]);
+
   function save() {
     if (!rec) return;
     startSave(async () => {
@@ -71,8 +86,8 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
   return (
     <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
       <section className="flex flex-col gap-4">
-        <h2 className="h2">Volunteer message</h2>
-        <label className="label">Message
+        <h2 className="h2">Message</h2>
+        <label className="label">Paste the hub’s message
           <textarea id="msg" className="input min-h-28" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. 200 packs of fried rice at the cafeteria, 9pm, hot" />
         </label>
         <div>
@@ -103,7 +118,7 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
           {rec && <Badge icon={by.icon}>{by.text}</Badge>}
         </div>
         {!rec ? (
-          <EmptyState icon={FileText}>Parse a message to see the record and its urgency.</EmptyState>
+          <EmptyState icon={FileText}>Parse a message, or enter the food manually, to see the record and its urgency.</EmptyState>
         ) : (
           <>
             {parsedBy !== "manual" && <p className="-mt-2 text-[13px] text-muted">Check the details before saving.</p>}
@@ -137,10 +152,15 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
                 </span>
               </div>
             )}
-            <button className="btn-dark self-start max-sm:w-full" onClick={save} disabled={saving || !rec.food || rec.quantity < 1 || (hubs.length > 0 && !hubId)}>
-              {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Save className="size-4" aria-hidden />}
-              {saving ? "Saving…" : "Save batch"}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button className="btn-dark max-sm:flex-1" onClick={save} disabled={saving || !rec.food || rec.quantity < 1 || (hubs.length > 0 && !hubId)}>
+                {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Save className="size-4" aria-hidden />}
+                {saving ? "Saving…" : "Save batch"}
+              </button>
+              <button type="button" className="btn-line max-sm:flex-1" onClick={cancel} disabled={saving}>
+                <X className="size-4" aria-hidden /> Cancel
+              </button>
+            </div>
           </>
         )}
       </section>

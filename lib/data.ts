@@ -4,7 +4,7 @@ import { EVENT_COOKIE } from "./event-cookie";
 import { foodWaiting, type FoodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
-import type { Batch, Bus, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
+import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
 
@@ -113,4 +113,31 @@ export async function getBusyBusIds(): Promise<string[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("trips").select("bus_id").in("status", ACTIVE_TRIP).not("bus_id", "is", null);
   return (data ?? []).map((t) => t.bus_id as string);
+}
+
+export type EventOverview = { event: EventRow; recovered: number; delivered: number };
+
+/** Every event with its recovered (approved) and delivered portions, in three queries. */
+export async function getEventOverview(): Promise<EventOverview[]> {
+  const supabase = await createClient();
+  const [e, b, d] = await Promise.all([
+    supabase.from("events").select("*").order("starts_at", { ascending: false }),
+    supabase.from("batches").select("event_id, qty").eq("review_status", "approved"),
+    supabase.from("deliveries").select("event_id, qty").eq("status", "delivered"),
+  ]);
+  const total = (rows: { event_id: string; qty: number }[] | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.event_id, (m.get(r.event_id) ?? 0) + r.qty);
+    return m;
+  };
+  const recovered = total(b.data);
+  const delivered = total(d.data);
+  return ((e.data ?? []) as EventRow[]).map((event) => ({ event, recovered: recovered.get(event.id) ?? 0, delivered: delivered.get(event.id) ?? 0 }));
+}
+
+export async function getBusLinks(eventId: string): Promise<BusLink[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("bus_links").select("*").eq("event_id", eventId);
+  if (error) throw error;
+  return (data ?? []) as BusLink[];
 }

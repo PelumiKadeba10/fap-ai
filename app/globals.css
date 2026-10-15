@@ -64,6 +64,11 @@ body { font-family: var(--font-sans); font-size: 15px; -webkit-font-smoothing: a
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .toast-in { animation: toast-in 0.18s ease-out; }
 
+@keyframes slide-in-left { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.slide-in-left { animation: slide-in-left 0.2s ease-out; }
+.fade-in { animation: fade-in 0.2s ease-out; }
+
 @media print {
   @page { margin: 14mm; }
   .no-print, header, nav { display: none !important; }

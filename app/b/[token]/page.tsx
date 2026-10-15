@@ -1,35 +1,75 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2, MapPin, Phone, Timer } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MapPin, Phone, RefreshCw, Timer } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { findBusLink, findCurrentTrip } from "@/lib/bus-trip";
 import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
 import { ATTENTION_MIN } from "@/lib/status";
 import { TRIP_STATUS, groupStops, stopStatus } from "@/lib/trip-status";
-import type { DeliveryStatus, TripStatus } from "@/lib/types";
+import type { DeliveryStatus } from "@/lib/types";
 import { busAction } from "./actions";
+import { AutoRefresh } from "./auto-refresh";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "My trip · FAP AI", robots: { index: false } };
 
-type TripRow = { id: string; status: TripStatus; departed_at: string | null; buses: { name: string } | null; collection_points: { name: string } | null };
 type Item = {
   id: string; qty: number; status: DeliveryStatus; stop_order: number | null; safe_until: string; site_id: string;
   batches: { food: string } | null;
   sites: { name: string; contact_name: string | null; contact_phone: string | null } | null;
 };
 
+/** One link per bus per event: shows the bus's current trip, or waits for the next one. */
 export default async function BusPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ e?: string }> }) {
   const { token } = await params;
   const { e } = await searchParams;
   const db = createAdminClient();
-  const { data: trip } = /^[a-f0-9]{32}$/.test(token)
-    ? await db.from("trips").select("id, status, departed_at, buses(name), collection_points(name)").eq("token", token).maybeSingle<TripRow>()
-    : { data: null };
+  const link = await findBusLink(db, token);
 
-  if (!trip) {
+  if (!link) {
     return (
       <Shell>
         <h1 className="text-2xl leading-tight font-semibold">Link not found</h1>
-        <p className="text-base text-[#4a525c]">This trip link isn’t valid. Ask your coordinator to send it again.</p>
+        <p className="text-base text-[#4a525c]">This bus link isn’t valid. Ask your coordinator to send it again.</p>
+      </Shell>
+    );
+  }
+
+  const [{ data: who }, trip] = await Promise.all([
+    db.from("bus_links").select("buses(name), events(name)").eq("id", link.id).maybeSingle<{ buses: { name: string } | null; events: { name: string } | null }>(),
+    findCurrentTrip(db, link),
+  ]);
+  const busName = who?.buses?.name ?? "Your bus";
+  const alert = e && (
+    <p role="alert" className="flex items-start gap-2 rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit">
+      <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />{e}
+    </p>
+  );
+
+  if (!trip) {
+    // Completed trips tonight, so the lead can see their night so far.
+    const { data: finished } = await db.from("trips").select("id").eq("event_id", link.event_id).eq("bus_id", link.bus_id).eq("status", "returned");
+    const ids = (finished ?? []).map((t) => t.id as string);
+    const { data: delivered } = ids.length ? await db.from("deliveries").select("qty").in("trip_id", ids).eq("status", "delivered") : { data: [] as { qty: number }[] };
+    const packs = (delivered ?? []).reduce((n, d) => n + d.qty, 0);
+    return (
+      <Shell>
+        <AutoRefresh />
+        <div>
+          <p className="text-base text-[#4a525c]">{busName}{who?.events?.name ? " · " + who.events.name : ""}</p>
+          <h1 className="mt-1 text-[28px] leading-tight font-semibold">No trip right now.</h1>
+          <p className="mt-2 text-lg">Keep this page open: your next trip will appear here.</p>
+        </div>
+        {alert}
+        <a href={"/b/" + token} className="flex min-h-16 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">
+          <RefreshCw className="size-6" aria-hidden />Refresh
+        </a>
+        <p className="text-sm text-[#4a525c]">This page checks for a new trip every 30 seconds.</p>
+        <section aria-labelledby="done" className="border-t border-line pt-4">
+          <h2 id="done" className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">Done tonight</h2>
+          <p className="mt-1 text-lg">
+            <span className="font-mono font-semibold">{ids.length}</span> {ids.length === 1 ? "trip" : "trips"} · <span className="font-mono font-semibold">{packs}</span> packs delivered
+          </p>
+        </section>
       </Shell>
     );
   }
@@ -55,16 +95,12 @@ export default async function BusPage({ params, searchParams }: { params: Promis
   return (
     <Shell>
       <div>
-        <p className="text-base text-[#4a525c]">{trip.buses?.name ?? "Your trip"} · {TRIP_STATUS[trip.status].label}</p>
+        <p className="text-base text-[#4a525c]">{busName} · {TRIP_STATUS[trip.status].label}</p>
         <h1 className="mt-1 text-[28px] leading-tight font-semibold"><span className="font-mono">{total}</span> packs from {hub}</h1>
         <p className="mt-2 text-base text-[#4a525c]">{stops.length} {stops.length === 1 ? "stop" : "stops"}{trip.departed_at && <> · left at <span className="font-mono">{fmtTime(trip.departed_at)}</span></>}</p>
       </div>
 
-      {e && (
-        <p role="alert" className="flex items-start gap-2 rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />{e}
-        </p>
-      )}
+      {alert}
 
       {onRoad && stops.length > 0 && (
         <p className="text-lg font-semibold" aria-live="polite">
@@ -75,13 +111,12 @@ export default async function BusPage({ params, searchParams }: { params: Promis
       {(trip.status === "planned" || trip.status === "loading") && (
         <form action={busAction}>
           <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="trip" value={trip.id} />
           <input type="hidden" name="intent" value="depart" />
-          <p className="mb-3 text-base text-[#4a525c]">{trip.status === "loading" ? `Loading at ${hub}.` : `Wait at ${hub} while the food is loaded.`} Tap when the bus is full and moving.</p>
+          <p className="mb-3 text-base text-[#4a525c]">{trip.status === "loading" ? "Loading at " + hub + "." : "Wait at " + hub + " while the food is loaded."} Tap when the bus is full and moving.</p>
           <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Loaded, leaving now</button>
         </form>
       )}
-
-      {trip.status === "cancelled" && <p className="text-xl font-semibold">This trip was cancelled. Ask your coordinator what to do next.</p>}
 
       <ol className="flex flex-col gap-4">
         {stops.map((s) => {
@@ -93,7 +128,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
             <li key={s.order} aria-current={isNext ? "step" : undefined} className={`rounded-2xl p-4 ${isNext ? "border-[3px] border-ink" : "border border-[#dde2e7]"} ${done ? "bg-soft" : "bg-white"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">{isNext ? "Next stop" : `Stop ${s.order}`}</p>
+                  <p className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">{isNext ? "Next stop" : "Stop " + s.order}</p>
                   <p className="mt-0.5 flex items-start gap-1.5 text-2xl leading-tight font-semibold break-words">
                     <MapPin className="mt-1 size-6 shrink-0" aria-hidden />{s.site?.name}
                   </p>
@@ -109,15 +144,15 @@ export default async function BusPage({ params, searchParams }: { params: Promis
               {!done && (
                 <p className={`mt-2 flex items-center gap-2 text-base ${urgent ? "font-semibold text-crit" : "text-[#4a525c]"}`}>
                   {urgent ? <AlertTriangle className="size-5 shrink-0" aria-hidden /> : <Timer className="size-5 shrink-0" aria-hidden />}
-                  Safe until <b className="font-mono">{fmtTime(s.safeUntil)}</b> · {left > 0 ? `${fmtDur(left)} left` : `${fmtDur(-left)} late`}
+                  Safe until <b className="font-mono">{fmtTime(s.safeUntil)}</b> · {left > 0 ? fmtDur(left) + " left" : fmtDur(-left) + " late"}
                 </p>
               )}
 
               {!done && s.site?.contact_phone && (
-                <a href={`tel:${s.site.contact_phone}`} className="mt-3 flex min-h-14 items-center gap-3 rounded-xl border-2 border-ink bg-white px-4 py-2 text-ink active:bg-soft">
+                <a href={"tel:" + s.site.contact_phone} className="mt-3 flex min-h-14 items-center gap-3 rounded-xl border-2 border-ink bg-white px-4 py-2 text-ink active:bg-soft">
                   <Phone className="size-6 shrink-0" aria-hidden />
                   <span className="min-w-0">
-                    <span className="block text-sm text-[#4a525c]">Tap to call{s.site.contact_name ? ` ${s.site.contact_name}` : ""}</span>
+                    <span className="block text-sm text-[#4a525c]">Tap to call{s.site.contact_name ? " " + s.site.contact_name : ""}</span>
                     <span className="block font-mono text-lg font-semibold">{s.site.contact_phone}</span>
                   </span>
                 </a>
@@ -127,6 +162,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
                 <div className="mt-3 flex flex-col gap-3">
                   <form action={busAction}>
                     <input type="hidden" name="token" value={token} />
+                    <input type="hidden" name="trip" value={trip.id} />
                     <input type="hidden" name="intent" value="delivered" />
                     <input type="hidden" name="stop" value={s.order} />
                     <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Delivered here</button>
@@ -134,6 +170,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
                   {s.status !== "delayed" && (
                     <form action={busAction}>
                       <input type="hidden" name="token" value={token} />
+                      <input type="hidden" name="trip" value={trip.id} />
                       <input type="hidden" name="intent" value="problem" />
                       <input type="hidden" name="stop" value={s.order} />
                       <button className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-4 py-3 text-lg font-semibold text-ink active:opacity-80">Problem at this stop</button>
@@ -149,14 +186,14 @@ export default async function BusPage({ params, searchParams }: { params: Promis
       {onRoad && !next && stops.length > 0 && (
         <form action={busAction}>
           <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="trip" value={trip.id} />
           <input type="hidden" name="intent" value="return" />
           <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Back at hub</button>
         </form>
       )}
       {onRoad && next && <p className="text-sm text-[#4a525c]">“Back at hub” appears once every stop is delivered.</p>}
 
-      {trip.status === "returned" && <p className="text-xl font-semibold text-ok">Trip finished. Thank you!</p>}
-      <p className="text-sm text-[#4a525c]">Keep this link. It only works for this trip.</p>
+      <p className="text-sm text-[#4a525c]">Keep this link for the whole night. Your next trip will appear on this page.</p>
     </Shell>
   );
 }

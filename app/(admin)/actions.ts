@@ -77,6 +77,14 @@ export async function selectEvent(id: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Overview card click: select the event, then go to it. Works as a plain form post without JavaScript. */
+export async function openEvent(form: FormData) {
+  const id = String(form.get("id") ?? "");
+  const to = String(form.get("to") ?? "") === "/live" ? "/live" : "/event";
+  const r = await selectEvent(id);
+  redirect(r.ok ? to : "/");
+}
+
 /** Removes a batch photo from private storage (service role: coordinators have no delete policy). Never blocks the caller. */
 async function deletePhoto(path: string | null | undefined) {
   if (!path) return;
@@ -277,6 +285,13 @@ export async function approvePlan(): Promise<Result & { created?: number }> {
 
 /* ---------- Trips (hubs and buses) ---------- */
 
+/** A bus gets its link for an event the first time it is used there. Safe to call again. */
+async function ensureBusLinks(supabase: Awaited<ReturnType<typeof db>>, eventId: string, busIds: string[]): Promise<string | null> {
+  if (!busIds.length) return null;
+  const { error } = await supabase.from("bus_links").upsert(busIds.map((bus_id) => ({ event_id: eventId, bus_id })), { onConflict: "event_id,bus_id", ignoreDuplicates: true });
+  return error?.message ?? null;
+}
+
 /**
  * Recomputes the plan on the server from current data and creates the trips and their deliveries.
  * busIds is aligned with the trips of the plan the coordinator saw (null = no bus yet).
@@ -310,6 +325,8 @@ export async function approveTrips(busIds: (string | null)[]): Promise<Result & 
   }
 
   const supabase = await db();
+  const linkError = await ensureBusLinks(supabase, event.id, chosen);
+  if (linkError) return { ok: false, error: linkError };
   const { data: created, error } = await supabase
     .from("trips")
     .insert(trips.map((t, i) => ({ event_id: event.id, hub_id: t.hubId === NO_HUB ? null : t.hubId, bus_id: busIds[i] ?? null })))
@@ -351,9 +368,13 @@ export async function setTripBus(tripId: string, busId: string | null): Promise<
     if (busy.includes(busId) && current?.bus_id !== busId) return { ok: false, error: `${bus.name} is already on a trip.` };
   }
   const supabase = await db();
-  const { data, error } = await supabase.from("trips").update({ bus_id: busId }).eq("id", tripId).in("status", ["planned", "loading"]).select("id");
+  const { data, error } = await supabase.from("trips").update({ bus_id: busId }).eq("id", tripId).in("status", ["planned", "loading"]).select("id, event_id");
   if (error) return { ok: false, error: error.message };
   if (!data?.length) return { ok: false, error: "The bus can only be changed before the trip leaves." };
+  if (busId) {
+    const linkError = await ensureBusLinks(supabase, data[0].event_id, [busId]);
+    if (linkError) return { ok: false, error: linkError };
+  }
   revalidatePath("/", "layout");
   return { ok: true };
 }

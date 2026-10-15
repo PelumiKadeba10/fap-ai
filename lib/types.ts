@@ -119,8 +119,16 @@ export interface Trip {
   hub_id: string | null;
   bus_id: string | null;
   status: TripStatus;
-  token: string;
   created_at: string;
   departed_at: string | null;
   returned_at: string | null;
+}
+
+/** The one link a bus lead keeps open for the whole event. */
+export interface BusLink {
+  id: string;
+  event_id: string;
+  bus_id: string;
+  token: string;
+  created_at: string;
 }

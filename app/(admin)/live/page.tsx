@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getSites, getTrips, getVolunteers } from "@/lib/data";
+import { getActiveEvent, getBatches, getBusLinks, getBuses, getCollectionPoints, getDeliveries, getSites, getTrips, getVolunteers } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageHeader } from "../ui";
 import { BusesManager } from "./buses-manager";
@@ -12,13 +12,14 @@ export default async function LivePage() {
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
 
   const supabase = await createClient();
-  const [deliveries, batches, sites, volunteers, trips, buses, hubs, updates] = await Promise.all([
+  const [deliveries, batches, sites, volunteers, trips, buses, busLinks, hubs, updates] = await Promise.all([
     getDeliveries(event.id),
     getBatches(event.id),
     getSites(),
     getVolunteers(),
     getTrips(event.id),
     getBuses(),
+    getBusLinks(event.id),
     getCollectionPoints(event.id),
     supabase
       .from("status_updates")
@@ -45,6 +46,7 @@ export default async function LivePage() {
           eventId={event.id}
           trips={trips}
           buses={buses}
+          busLinks={busLinks.map((l) => ({ bus_id: l.bus_id, token: l.token }))}
           hubs={hubs.map((h) => ({ id: h.id, name: h.name }))}
           deliveries={deliveries}
           batches={batches}

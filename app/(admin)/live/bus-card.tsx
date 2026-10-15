@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, ClipboardList, Copy, MessageCircle } from "lucide-react";
+import { AlertTriangle, Bell, Check, ClipboardList, Copy, MessageCircle } from "lucide-react";
 import type { Bus, Delivery, Trip, TripStatus } from "@/lib/types";
 import { ATTENTION_MIN } from "@/lib/status";
 import { TRIP_STATUS, canTripMove, stopAlerts, stopStatus, type Stop } from "@/lib/trip-status";
@@ -18,7 +18,8 @@ export type BusCardProps = {
   now: Date;
   /** Free buses (plus this trip's own bus) that can be picked before the trip leaves. */
   pickable: Bus[];
-  link: string;
+  /** The bus link for this event (one per bus, not per trip); null until a bus is assigned. */
+  link: string | null;
   copied: boolean;
   busy: boolean;
   onCopy: () => void;
@@ -42,9 +43,12 @@ export function BusCard(p: BusCardProps) {
   const headline = trip.status === "loading" ? `Loading at ${p.hubName}` : trip.status === "planned" ? `Planned · load at ${p.hubName}` : trip.status === "departed" ? "On the road" : st.label;
   const canEditBus = trip.status === "planned" || trip.status === "loading";
 
-  const text = `FAP trip: ${total} packs from ${p.hubName}. ${stops.length} stops: ${stops.map((s) => p.siteName(s.siteId)).join(", ")}. Tap to update: ${p.link}`;
+  // The lead gets the link once for the night; later trips just need a short nudge.
   const phone = (bus?.lead_phone ?? "").replace(/\D/g, "").replace(/^0/, "234");
-  const whatsapp = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  const wa = (text: string) => `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  const whatsapp = p.link ? wa(`FAP: this is your bus link for tonight. Keep it open, your trips appear on it: ${p.link}`) : null;
+  const notify = p.link ? wa(`New trip from ${p.hubName}: ${stops.length} ${stops.length === 1 ? "stop" : "stops"}, ${total} packs. Open your bus link: ${p.link}`) : null;
+  const waiting = trip.status === "planned" || trip.status === "loading";
 
   return (
     <article className={`flex flex-col gap-3.5 rounded-xl border border-line p-4 ${alerts.length ? "border-l-4 border-l-crit" : ""}`} aria-label={`${bus?.name ?? "Unassigned"} trip`}>
@@ -129,11 +133,14 @@ export function BusCard(p: BusCardProps) {
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         {trip.status !== "cancelled" && trip.status !== "returned" && (
           <>
-            {bus && <a className={ACT} href={whatsapp} target="_blank" rel="noreferrer"><MessageCircle className="size-4" aria-hidden />WhatsApp bus lead</a>}
-            <button className={ACT} onClick={p.onCopy}>
-              {p.copied ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-              {p.copied ? "Copied" : "Copy link"}
-            </button>
+            {waiting && notify && <a className={`${ACT} !border-ink !bg-ink !text-white hover:!bg-[#2a3038]`} href={notify} target="_blank" rel="noreferrer"><Bell className="size-4" aria-hidden />Notify lead</a>}
+            {whatsapp && <a className={ACT} href={whatsapp} target="_blank" rel="noreferrer"><MessageCircle className="size-4" aria-hidden />WhatsApp bus lead</a>}
+            {p.link && (
+              <button className={ACT} onClick={p.onCopy}>
+                {p.copied ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+                {p.copied ? "Copied" : "Copy bus link"}
+              </button>
+            )}
           </>
         )}
         <Link className={ACT} href={`/trips/${trip.id}/load`}><ClipboardList className="size-4" aria-hidden />Loading list</Link>

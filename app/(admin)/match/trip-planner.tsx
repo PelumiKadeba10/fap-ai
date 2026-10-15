@@ -71,7 +71,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
       const r = await approveTrips(busFor);
       setConfirming(false);
       if (!r.ok) return toast(false, r.error);
-      toast(true, `${r.created} ${r.created === 1 ? "trip" : "trips"} created. Send each bus lead their link on Live dispatch.`);
+      toast(true, `${r.created} ${r.created === 1 ? "trip" : "trips"} created. Use Notify lead on Live dispatch to tell each bus lead.`);
       setNow(null);
       router.refresh();
     });
@@ -138,7 +138,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
               <div role="alertdialog" aria-labelledby="confirm-t" className="flex flex-col gap-3 rounded-xl border border-ink p-4">
                 <div>
                   <p id="confirm-t" className="font-semibold">Create {count} {count === 1 ? "trip" : "trips"}?</p>
-                  <p className="mt-0.5 text-sm text-muted">This reserves the food and adds each trip to Live dispatch. Bus leads get their links next. Nothing is sent automatically.</p>
+                  <p className="mt-0.5 text-sm text-muted">This reserves the food and adds each trip to Live dispatch. Bus leads are notified next from Live dispatch. Nothing is sent automatically.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                   <button className="btn-dark" onClick={approve} disabled={pending} autoFocus>
