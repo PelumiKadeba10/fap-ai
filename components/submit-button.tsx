@@ -15,7 +15,6 @@ export function SubmitButton({ children, pendingText, className = "", spinnerCla
     <button className={bare ? className : `${className} inline-flex items-center justify-center gap-2`} disabled={pending} aria-busy={pending}>
       {!bare && pending && <Spinner className={spinnerClassName} />}
       {!bare && pending && pendingText ? pendingText : children}
-      {bare && children}
     </button>
   );
 }

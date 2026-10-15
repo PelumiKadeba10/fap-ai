@@ -68,7 +68,7 @@ function EventCard({ o, phase }: { o: EventOverview; phase: EventPhase }) {
           <span className="flex items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block truncate text-base font-semibold">{e.name}</span>
-              <span className="mt-0.5 block text-[13px] text-muted">{EVENT_TYPES[e.type].label}</span>
+              {!e.name.toLowerCase().includes(EVENT_TYPES[e.type].label.toLowerCase()) && <span className="mt-0.5 block text-[13px] text-muted">{EVENT_TYPES[e.type].label}</span>}
             </span>
             {phase === "live" && <Pill tone="green">Live now</Pill>}
           </span>
