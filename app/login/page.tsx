@@ -18,8 +18,7 @@ function LoginForm() {
     setError("");
     const { error } = await createClient().auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (error) return setError("Email or password is wrong. Ask the team lead to check your account.");
-    router.replace(next);
+if (error) return setError(error.message === "Invalid login credentials" ? "Email or password is wrong." : error.message);    router.replace(next);
     router.refresh();
   }
 

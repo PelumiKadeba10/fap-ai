@@ -1,5 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";import { cookies } from "next/headers";
 
 /** Supabase client for server components, server actions and route handlers (acts as the signed-in coordinator). */
 export async function createClient() {
@@ -9,8 +8,7 @@ export async function createClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
-        try {
+      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {        try {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // Called from a server component: cookies are read-only there. The middleware refreshes the session.
