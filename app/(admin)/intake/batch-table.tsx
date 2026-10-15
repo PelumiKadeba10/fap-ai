@@ -20,7 +20,7 @@ export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: 
     <section className="flex flex-col gap-4">
       <SectionHead title="Recovered batches" aside={<>{batches.length} batches · <span className="font-mono">{n0(total)}</span> portions</>} />
       {batches.length === 0 ? (
-        <EmptyState icon={PackageOpen}>No food confirmed yet. Confirm what the hubs send, and it shows up here.</EmptyState>
+        <EmptyState icon={PackageOpen}>No food confirmed yet. Confirm what the collection points send, and it shows up here.</EmptyState>
       ) : (
         <table className={cardTable}>
           <thead>

@@ -37,7 +37,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
 
   const capacity = defaultCapacity(buses);
   const freeBuses = buses.filter((b) => b.active && !busyBusIds.includes(b.id));
-  const hubName = (id: string) => (id === NO_HUB ? "No hub" : hubs.find((h) => h.id === id)?.name ?? "Hub");
+  const hubName = (id: string) => (id === NO_HUB ? "No collection point" : hubs.find((h) => h.id === id)?.name ?? "Collection point");
   const batchById = new Map(batches.map((b) => [b.id, b]));
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const waiting = foodWaiting(batches, Object.entries(sentByBatch).map(([batch_id, qty]) => ({ batch_id, qty })));
@@ -115,7 +115,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
 
           <div className="flex flex-col gap-5">
             <p className="text-sm text-muted">
-              Each bus loads at one hub and visits several sites. Trips are planned for buses of up to <span className="font-mono">{capacity}</span> packs.
+              Each bus loads at one collection point and visits several places. Trips are planned for buses of up to <span className="font-mono">{capacity}</span> packs.
               Coordinators approve every plan before bus leads are told.
             </p>
             <div className="flex flex-wrap items-center gap-3">

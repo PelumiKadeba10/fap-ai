@@ -32,7 +32,7 @@ export default async function ImpactPage() {
   const predicted = predict(event).surplus;
   const gallery = batches.filter((b) => b.photo_path).sort((a, b) => +new Date(b.collected_at) - +new Date(a.collected_at)).slice(0, 24);
   const photoUrls = await getPhotoUrls(gallery);
-  const hubName = (id: string) => (id === "none" ? "No hub" : hubs.find((h) => h.id === id)?.name ?? "Hub");
+  const hubName = (id: string) => (id === "none" ? "No collection point" : hubs.find((h) => h.id === id)?.name ?? "Collection point");
   const perHub = hubTotals(batches, deliveries);
   const perBus = busTotals(trips, deliveries);
   const safePct = deliveredQty ? Math.round((100 * safeQty) / deliveredQty) : 0;
@@ -89,9 +89,9 @@ export default async function ImpactPage() {
       {(perHub.length > 0 || perBus.length > 0) && (
         <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
           <section className="flex flex-col gap-4">
-            <SectionHead title="By hub" aside="portions" />
+            <SectionHead title="By collection point" aside="portions" />
             <table className="w-full border-collapse text-[15px]">
-              <thead><tr><th className="th">Hub</th><th className="th text-right">Recovered</th><th className="th text-right">Delivered</th></tr></thead>
+              <thead><tr><th className="th">Collection point</th><th className="th text-right">Recovered</th><th className="th text-right">Delivered</th></tr></thead>
               <tbody>
                 {perHub.map((h) => (
                   <tr key={h.hubId}><td className="cell">{hubName(h.hubId)}</td><td className="cell text-right font-mono">{n0(h.recovered)}</td><td className="cell text-right font-mono">{n0(h.delivered)}</td></tr>

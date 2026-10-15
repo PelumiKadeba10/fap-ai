@@ -87,7 +87,7 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
     <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
       <section className="flex flex-col gap-4">
         <h2 className="h2">Message</h2>
-        <label className="label">Paste the hub’s message
+        <label className="label">Paste the collection point’s message
           <textarea id="msg" className="input min-h-28" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. 200 packs of fried rice at the cafeteria, 9pm, hot" />
         </label>
         <div>
@@ -133,9 +133,9 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
               </label>
               <label className="label">Condition<input id="r-cond" className="input" value={rec.condition} onChange={(e) => edit("condition", e.target.value)} /></label>
               {hubs.length > 0 && (
-                <label className="label sm:col-span-2">Hub (where the food is)
+                <label className="label sm:col-span-2">Collection point (where the food is)
                   <select id="r-hub" className="input" value={hubId} onChange={(e) => setHubId(e.target.value)}>
-                    <option value="">Choose a hub…</option>
+                    <option value="">Choose a collection point…</option>
                     {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                   </select>
                 </label>

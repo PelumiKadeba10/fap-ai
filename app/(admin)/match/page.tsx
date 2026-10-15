@@ -24,7 +24,7 @@ export default async function MatchPage() {
     <>
       <PageHeader
         title="Which bus takes what, and where?"
-        description="Each bus loads at one hub and visits several places. Matching weighs need, distance, urgency and capacity; urgent food goes first, then trips are packed to the bus size."
+        description="Each bus loads at one collection point and visits several places. Matching weighs need, distance, urgency and capacity; urgent food goes first, then trips are packed to the bus size."
       />
       <TripPlanner
         batches={batches} sites={sites} hubs={hubs.map((h) => ({ id: h.id, name: h.name }))} buses={buses} busyBusIds={busyBusIds}

@@ -48,7 +48,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const busById = new Map(buses.map((b) => [b.id, b]));
   const hubById = new Map(hubs.map((h) => [h.id, h.name]));
-  const hubName = (id: string | null) => (id ? hubById.get(id) ?? "Hub" : "No hub");
+  const hubName = (id: string | null) => (id ? hubById.get(id) ?? "Collection point" : "No collection point");
 
   const tripDeliveries = (t: Trip) => deliveries.filter((d) => d.trip_id === t.id);
   const stopsOf = (t: Trip) => groupStops(tripDeliveries(t));
@@ -95,16 +95,16 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
         <Stat label="Stops needing attention" value={String(attention)} tone={attention ? "red" : "green"} hint={attention ? "problem or near safe time" : "all on track"} />
       </div>
 
-      <section className="flex flex-col gap-3" aria-label="Food waiting per hub">
-        <SectionHead title="Food waiting per hub" aside="approved food not yet on a trip" />
+      <section className="flex flex-col gap-3" aria-label="Food waiting per collection point">
+        <SectionHead title="Food waiting per collection point" aside="approved food not yet on a trip" />
         {waitingHubs.length === 0 ? (
           <p className="text-sm text-muted">Nothing waiting. Everything checked so far is on a trip.</p>
         ) : (
           <ul className="flex flex-wrap gap-x-8 gap-y-3">
             {waitingHubs.map(([id, w]) => (
               <li key={id} className="flex flex-col gap-1">
-                <span className="flex items-baseline gap-2"><Soup className="size-4 self-center text-muted" aria-hidden /><b className="font-semibold">{id === "none" ? "No hub" : hubName(id)}</b><span className="font-mono text-sm">{n0(w.portions)} portions · {w.batches} {w.batches === 1 ? "batch" : "batches"}</span></span>
-                {loadable.has(id) && <Link className="link self-start" href={`/trips/load?hub=${id}`}><ClipboardList className="mr-1 inline size-3.5" aria-hidden />Show all loading lists for {id === "none" ? "No hub" : hubName(id)}</Link>}
+                <span className="flex items-baseline gap-2"><Soup className="size-4 self-center text-muted" aria-hidden /><b className="font-semibold">{id === "none" ? "No collection point" : hubName(id)}</b><span className="font-mono text-sm">{n0(w.portions)} portions · {w.batches} {w.batches === 1 ? "batch" : "batches"}</span></span>
+                {loadable.has(id) && <Link className="link self-start" href={`/trips/load?hub=${id}`}><ClipboardList className="mr-1 inline size-3.5" aria-hidden />Show all loading lists for {id === "none" ? "No collection point" : hubName(id)}</Link>}
               </li>
             ))}
           </ul>

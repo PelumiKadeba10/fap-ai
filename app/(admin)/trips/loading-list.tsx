@@ -32,7 +32,7 @@ export async function loadTrips(supabase: SupabaseClient, filter: TripFilter): P
   return trips.map((t) => {
     const stops = groupStops(items.filter((i) => i.trip_id === t.id)).map((s) => ({ order: s.order, site: s.items[0].sites, items: s.items }));
     return {
-      id: t.id, status: t.status, bus: t.buses?.name ?? null, hub: t.collection_points?.name ?? "No hub",
+      id: t.id, status: t.status, bus: t.buses?.name ?? null, hub: t.collection_points?.name ?? "No collection point",
       total: stops.reduce((n, s) => n + s.items.reduce((m, i) => m + i.qty, 0), 0), stops,
     };
   });

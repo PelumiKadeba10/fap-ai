@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "FAP AI",
   description: "Surplus food recovery and redistribution for the Feed-a-Person Initiative.",
+  icons: { icon: "/fap-logo.png", apple: "/fap-logo.png" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };

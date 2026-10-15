@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function HubLoadPage({ searchParams }: { searchParams: Promise<{ hub?: string }> }) {
   const { hub } = await searchParams;
   const event = await getActiveEvent();
-  if (!event || !hub) return <EmptyState action={<Link href="/live">Back to Live</Link>}>Choose a hub from Live.</EmptyState>;
+  if (!event || !hub) return <EmptyState action={<Link href="/live">Back to Live</Link>}>Choose a collection point from Live.</EmptyState>;
 
   const supabase = await createClient();
   const trips = await loadTrips(supabase, { eventId: event.id, hub });
@@ -23,12 +23,12 @@ export default async function HubLoadPage({ searchParams }: { searchParams: Prom
         <PageHeader
           eyebrow="Loading lists"
           title={trips[0] ? `All loading lists · ${trips[0].hub}` : "Loading lists"}
-          description="Trips from this hub that haven’t left yet."
+          description="Trips from this collection point that haven’t left yet."
           actions={<><Link href="/live" className="btn-line"><ArrowLeft className="size-4" aria-hidden />Live</Link>{trips.length > 0 && <PrintButton />}</>}
         />
       </div>
       {trips.length === 0
-        ? <EmptyState icon={ClipboardList}>No trips are waiting to load at this hub.</EmptyState>
+        ? <EmptyState icon={ClipboardList}>No trips are waiting to load at this collection point.</EmptyState>
         : trips.map((t) => <LoadingList key={t.id} trip={t} printedAt={new Date()} />)}
     </>
   );

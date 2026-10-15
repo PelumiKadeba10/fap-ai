@@ -24,14 +24,14 @@ export default async function IntakePage() {
   return (
     <>
       <PageHeader
-        title="Check what the hubs send."
-        description="Each hub reports food from its own link. Check every submission before it is matched. FAP AI reads the message and scores its urgency."
+        title="Check what the collection points send."
+        description="Each collection point reports food from its own link. Check every submission before it is matched. FAP AI reads the message and scores its urgency."
       />
 
       {points.length === 0 && (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-l-4 border-orange bg-[#fffaf0] px-4 py-3.5" role="status">
-          <p className="flex items-start gap-2 text-[15px] font-medium"><MapPinned className="mt-0.5 size-4 shrink-0" aria-hidden />No hubs yet for this event. Add each hub to give it a link for reporting food.</p>
-          <a href="#collection-points" className="text-sm font-semibold underline underline-offset-4">Add hubs</a>
+          <p className="flex items-start gap-2 text-[15px] font-medium"><MapPinned className="mt-0.5 size-4 shrink-0" aria-hidden />No collection points yet for this event. Add each collection point to give it a link for reporting food.</p>
+          <a href="#collection-points" className="text-sm font-semibold underline underline-offset-4">Add collection points</a>
         </div>
       )}
 
@@ -43,7 +43,7 @@ export default async function IntakePage() {
           <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
           Add food yourself
         </summary>
-        <p className="mt-2 mb-6 text-sm text-muted">Use this if a hub can’t use its link, e.g. no data or a phone call.</p>
+        <p className="mt-2 mb-6 text-sm text-muted">Use this if a collection point can’t use its link, e.g. no data or a phone call.</p>
         <IntakeBox hubs={points.filter((p) => p.active)} />
       </details>
 

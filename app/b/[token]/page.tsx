@@ -90,7 +90,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
   const doneCount = stops.filter((s) => s.status === "delivered").length;
   const next = stops.find((s) => s.status !== "delivered");
   const onRoad = trip.status === "departed";
-  const hub = trip.collection_points?.name ?? "the hub";
+  const hub = trip.collection_points?.name ?? "the collection point";
 
   return (
     <Shell>
@@ -188,10 +188,10 @@ export default async function BusPage({ params, searchParams }: { params: Promis
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="trip" value={trip.id} />
           <input type="hidden" name="intent" value="return" />
-          <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Back at hub</button>
+          <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Back at collection point</button>
         </form>
       )}
-      {onRoad && next && <p className="text-sm text-[#4a525c]">“Back at hub” appears once every stop is delivered.</p>}
+      {onRoad && next && <p className="text-sm text-[#4a525c]">“Back at collection point” appears once every stop is delivered.</p>}
 
       <p className="text-sm text-[#4a525c]">Keep this link for the whole night. Your next trip will appear on this page.</p>
     </Shell>

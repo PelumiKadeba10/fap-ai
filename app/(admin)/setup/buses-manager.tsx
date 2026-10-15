@@ -41,7 +41,7 @@ export function BusesManager({ buses, busyIds }: { buses: Bus[]; busyIds: string
           </tbody>
         </table>
       ) : (
-        <EmptyState icon={BusIcon}>No buses yet. Add the buses that will carry food between hubs and sites.</EmptyState>
+        <EmptyState icon={BusIcon}>No buses yet. Add the buses that will carry food between collection points and places.</EmptyState>
       )}
       {!adding && (
         <button className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[#dde2e7] px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:border-[#b9c1c9] hover:text-ink" onClick={() => setAdding(true)}>
