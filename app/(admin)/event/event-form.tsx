@@ -106,7 +106,7 @@ export function EventForm({ event }: { event: EventRow | null }) {
       </section>
 
       <div className="max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:border-t max-md:border-line max-md:bg-white/95 max-md:px-4 max-md:py-3 max-md:backdrop-blur">
-        <button className="btn-dark max-md:w-full" onClick={onSave} disabled={pending || !f.name.trim()}>
+        <button className="btn-dark max-md:w-full" onClick={onSave} disabled={pending || !f.name.trim()} aria-busy={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
           {pending ? "Saving…" : event ? "Save changes" : "Create event"}
         </button>

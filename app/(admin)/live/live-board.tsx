@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bus as BusIcon, ClipboardList, Soup } from "lucide-react";
@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { setStopStatusAsStaff, setTripBus, setTripStatusAsStaff } from "../actions";
 import { EmptyState, Pill, SectionHead, Stat } from "../ui";
 import { useToast } from "../toast";
+import { useAction } from "../use-action";
 import { BusCard } from "./bus-card";
 
 type Update = { id: number; delivery_id: string; status: string; note: string | null; created_at: string };
@@ -26,7 +27,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
   const toast = useToast();
   const [now, setNow] = useState(() => new Date());
   const [copied, setCopied] = useState("");
-  const [pending, start] = useTransition();
+  const { pending, busy, run } = useAction();
   const [origin, setOrigin] = useState(siteUrl);
   useEffect(() => { if (!siteUrl) setOrigin(window.location.origin); }, [siteUrl]);
 
@@ -42,7 +43,6 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
     return () => { clearInterval(t); supabase.removeChannel(ch); };
   }, [eventId, router]);
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => start(async () => { const r = await fn(); if (!r.ok) toast(false, r.error ?? "Something went wrong."); });
 
   const batchById = new Map(batches.map((b) => [b.id, b]));
   const siteById = new Map(sites.map((s) => [s.id, s]));
@@ -128,11 +128,11 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
                 key={key} trip={trip} bus={bus} hubName={hubName(trip.hub_id)} stops={stopsOf(trip)} now={now}
                 foodName={(id) => batchById.get(id)?.food ?? "Food"} siteName={(id) => siteById.get(id)?.name ?? "Site"}
                 pickable={[...free, ...(bus && !free.some((f) => f.id === bus.id) ? [bus] : [])]}
-                link={linkFor(trip.bus_id)} copied={copied === trip.id} busy={pending}
+                link={linkFor(trip.bus_id)} copied={copied === trip.id} busy={pending} isBusy={(k) => busy(trip.id + "|" + k)}
                 onCopy={() => { const u = linkFor(trip.bus_id); if (u) copy(trip, u); }}
-                onBus={(id) => run(() => setTripBus(trip.id, id))}
-                onTripStatus={(to) => run(() => setTripStatusAsStaff(trip.id, to))}
-                onStop={(order, to) => run(() => setStopStatusAsStaff(trip.id, order, to))}
+                onBus={(id) => run(trip.id + "|bus", () => setTripBus(trip.id, id))}
+                onTripStatus={(to) => run(trip.id + "|status:" + to, () => setTripStatusAsStaff(trip.id, to))}
+                onStop={(order, to) => run(trip.id + "|stop:" + order + ":" + to, () => setStopStatusAsStaff(trip.id, order, to))}
               />
             ) : (
               <article key={key} className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">

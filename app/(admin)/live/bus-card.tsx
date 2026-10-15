@@ -6,6 +6,7 @@ import type { Bus, Delivery, Trip, TripStatus } from "@/lib/types";
 import { ATTENTION_MIN } from "@/lib/status";
 import { TRIP_STATUS, canTripMove, stopAlerts, stopStatus, type Stop } from "@/lib/trip-status";
 import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
+import { Spinner } from "@/components/spinner";
 import { Pill, StatusPill } from "../ui";
 
 export type BusCardProps = {
@@ -21,7 +22,10 @@ export type BusCardProps = {
   /** The bus link for this event (one per bus, not per trip); null until a bus is assigned. */
   link: string | null;
   copied: boolean;
+  /** True while any update is running (disables the other buttons). */
   busy: boolean;
+  /** True while this specific button's update is running. Keys: "bus", "status:<to>", "stop:<order>:<to>". */
+  isBusy: (key: string) => boolean;
   onCopy: () => void;
   onBus: (busId: string | null) => void;
   onTripStatus: (to: TripStatus) => void;
@@ -110,8 +114,8 @@ export function BusCard(p: BusCardProps) {
                 <p className="text-[13px] text-muted">{s.items.map((d) => `${d.qty} ${p.foodName(d.batch_id)}`).join(" + ")}</p>
                 {trip.status === "departed" && status !== "delivered" && (
                   <div className="mt-1.5 flex flex-wrap gap-2">
-                    <button className={ACT} disabled={p.busy} onClick={() => p.onStop(s.order, "delivered")}>Mark delivered</button>
-                    {status !== "delayed" && <button className={ACT} disabled={p.busy} onClick={() => p.onStop(s.order, "delayed")}>Flag a problem</button>}
+                    <button className={ACT} disabled={p.busy} aria-busy={p.isBusy(`stop:${s.order}:delivered`)} onClick={() => p.onStop(s.order, "delivered")}>{p.isBusy(`stop:${s.order}:delivered`) && <Spinner />}{p.isBusy(`stop:${s.order}:delivered`) ? "Saving…" : "Mark delivered"}</button>
+                    {status !== "delayed" && <button className={ACT} disabled={p.busy} aria-busy={p.isBusy(`stop:${s.order}:delayed`)} onClick={() => p.onStop(s.order, "delayed")}>{p.isBusy(`stop:${s.order}:delayed`) && <Spinner />}{p.isBusy(`stop:${s.order}:delayed`) ? "Saving…" : "Flag a problem"}</button>}
                   </div>
                 )}
               </div>
@@ -123,10 +127,11 @@ export function BusCard(p: BusCardProps) {
       {canEditBus && (
         <label className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
           Bus
-          <select className="input w-auto py-1.5 text-sm text-ink max-md:min-h-11" value={trip.bus_id ?? ""} disabled={p.busy} onChange={(e) => p.onBus(e.target.value || null)}>
+          <select className="input w-auto py-1.5 text-sm text-ink max-md:min-h-11" value={trip.bus_id ?? ""} disabled={p.busy} aria-busy={p.isBusy("bus")} onChange={(e) => p.onBus(e.target.value || null)}>
             <option value="">No bus yet</option>
             {p.pickable.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.capacity})</option>)}
           </select>
+          {p.isBusy("bus") && <span className="inline-flex items-center gap-1.5 text-xs" role="status"><Spinner className="size-3.5" />Saving…</span>}
         </label>
       )}
 
@@ -149,13 +154,13 @@ export function BusCard(p: BusCardProps) {
       {(["loading", "departed", "returned"] as TripStatus[]).some((to) => canTripMove(trip.status, to)) || canTripMove(trip.status, "cancelled") ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
           <span className="text-muted">Coordinator override</span>
-          {canTripMove(trip.status, "loading") && <button className="link" disabled={p.busy} onClick={() => p.onTripStatus("loading")}>Mark loading</button>}
-          {canTripMove(trip.status, "departed") && <button className="link" disabled={p.busy} onClick={() => p.onTripStatus("departed")}>Mark departed</button>}
-          {canTripMove(trip.status, "returned") && <button className="link" disabled={p.busy} onClick={() => p.onTripStatus("returned")}>Mark returned</button>}
+          {canTripMove(trip.status, "loading") && <button className="link inline-flex items-center gap-1.5" disabled={p.busy} aria-busy={p.isBusy("status:loading")} onClick={() => p.onTripStatus("loading")}>{p.isBusy("status:loading") && <Spinner className="size-3.5" />}{p.isBusy("status:loading") ? "Saving…" : "Mark loading"}</button>}
+          {canTripMove(trip.status, "departed") && <button className="link inline-flex items-center gap-1.5" disabled={p.busy} aria-busy={p.isBusy("status:departed")} onClick={() => p.onTripStatus("departed")}>{p.isBusy("status:departed") && <Spinner className="size-3.5" />}{p.isBusy("status:departed") ? "Saving…" : "Mark departed"}</button>}
+          {canTripMove(trip.status, "returned") && <button className="link inline-flex items-center gap-1.5" disabled={p.busy} aria-busy={p.isBusy("status:returned")} onClick={() => p.onTripStatus("returned")}>{p.isBusy("status:returned") && <Spinner className="size-3.5" />}{p.isBusy("status:returned") ? "Saving…" : "Mark returned"}</button>}
           {canTripMove(trip.status, "cancelled") && (confirmCancel ? (
             <span className="flex items-center gap-3">
               <span className="text-crit">Cancel and free the food?</span>
-              <button className="link-danger" disabled={p.busy} onClick={() => p.onTripStatus("cancelled")}>Yes, cancel trip</button>
+              <button className="link-danger inline-flex items-center gap-1.5" disabled={p.busy} aria-busy={p.isBusy("status:cancelled")} onClick={() => p.onTripStatus("cancelled")}>{p.isBusy("status:cancelled") && <Spinner className="size-3.5" />}{p.isBusy("status:cancelled") ? "Cancelling…" : "Yes, cancel trip"}</button>
               <button className="link" onClick={() => setConfirmCancel(false)}>Keep</button>
             </span>
           ) : <button className="link-danger" onClick={() => setConfirmCancel(true)}>Cancel trip</button>)}

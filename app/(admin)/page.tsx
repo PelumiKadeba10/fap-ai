@@ -4,6 +4,7 @@ import { getEventOverview, type EventOverview } from "@/lib/data";
 import { EVENT_TYPES, predict } from "@/lib/predict";
 import { TZ, n0 } from "@/lib/format";
 import { eventPhase, type EventPhase } from "@/lib/overview";
+import { PendingOverlay, SubmitButton } from "@/components/submit-button";
 import { openEvent } from "./actions";
 import { EmptyState, PageHeader, Pill } from "./ui";
 
@@ -62,7 +63,8 @@ function EventCard({ o, phase }: { o: EventOverview; phase: EventPhase }) {
       <form action={openEvent}>
         <input type="hidden" name="id" value={e.id} />
         <input type="hidden" name="to" value={phase === "live" ? "/live" : "/event"} />
-        <button className="group block w-full rounded-xl border border-line p-4 text-left transition-colors hover:border-[#b9c1c9] hover:bg-soft sm:p-5">
+        <SubmitButton bare className="group relative block w-full rounded-xl border border-line p-4 text-left transition-colors hover:border-[#b9c1c9] hover:bg-soft sm:p-5">
+          <PendingOverlay text="Opening…" />
           <span className="flex items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block truncate text-base font-semibold">{e.name}</span>
@@ -76,7 +78,7 @@ function EventCard({ o, phase }: { o: EventOverview; phase: EventPhase }) {
             <Figure label="Recovered" value={n0(o.recovered)} />
             <Figure label="Delivered" value={n0(o.delivered)} />
           </span>
-        </button>
+        </SubmitButton>
       </form>
     </li>
   );

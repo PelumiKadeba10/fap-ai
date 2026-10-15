@@ -1,11 +1,12 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import type { Direction, Site, SiteKind } from "@/lib/types";
 import { DIRECTIONS, historyForecast, siteNeed } from "@/lib/match";
 import { removeSite, saveSite } from "../actions";
 import { EmptyState, SectionHead, cardTable } from "../ui";
-import { useToast } from "../toast";
+import { Spinner } from "@/components/spinner";
+import { useAction } from "../use-action";
 
 const KINDS: SiteKind[] = ["School", "Community", "Care home", "Shelter", "Other"];
 
@@ -13,15 +14,8 @@ type Draft = { name: string; kind: SiteKind; people: number | null; km: number; 
 const toDraft = (s: Site): Draft => ({ name: s.name, kind: s.kind, people: s.people, km: Number(s.km), direction: s.direction, contact_phone: s.contact_phone });
 
 export function SitesEditor({ sites }: { sites: Site[] }) {
-  const toast = useToast();
-  const [pending, start] = useTransition();
+  const { pending, busy, run } = useAction();
   const [adding, setAdding] = useState(false);
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) toast(false, r.error ?? "Something went wrong.");
-    });
 
   return (
     <section className="flex flex-col gap-4">
@@ -32,13 +26,15 @@ export function SitesEditor({ sites }: { sites: Site[] }) {
         </thead>
         <tbody>
           {sites.map((s) => (
-            <SiteRow key={s.id} site={s} onSave={(d) => run(() => saveSite({ id: s.id, ...d }))} onRemove={() => run(() => removeSite(s.id))} pending={pending} />
+            <SiteRow key={s.id} site={s} onSave={(d) => run("save:" + s.id, () => saveSite({ id: s.id, ...d }))} onRemove={() => run("rm:" + s.id, () => removeSite(s.id))} pending={pending} saving={busy("save:" + s.id)} removing={busy("rm:" + s.id)} />
           ))}
           {adding && (
             <SiteRow
               site={null}
               pending={pending}
-              onSave={(d) => run(async () => { const r = await saveSite(d); if (r.ok) setAdding(false); return r; })}
+              saving={busy("save:new")}
+              removing={false}
+              onSave={(d) => run("save:new", async () => { const r = await saveSite(d); if (r.ok) setAdding(false); return r; })}
               onRemove={() => setAdding(false)}
             />
           )}
@@ -54,7 +50,7 @@ export function SitesEditor({ sites }: { sites: Site[] }) {
   );
 }
 
-function SiteRow({ site, onSave, onRemove, pending }: { site: Site | null; onSave: (d: Draft) => void; onRemove: () => void; pending: boolean }) {
+function SiteRow({ site, onSave, onRemove, pending, saving, removing }: { site: Site | null; onSave: (d: Draft) => void; onRemove: () => void; pending: boolean; saving: boolean; removing: boolean }) {
   const [d, setD] = useState<Draft>(site ? toDraft(site) : { name: "", kind: "Community", people: 50, km: 3, direction: "N", contact_phone: "" });
   const isNew = !site;
   const changed = site ? JSON.stringify(toDraft(site)) !== JSON.stringify(d) : false;
@@ -87,11 +83,16 @@ function SiteRow({ site, onSave, onRemove, pending }: { site: Site | null; onSav
       <td className="cell" data-label="">
         {isNew ? (
           <div className="flex items-center gap-3">
-            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.name.trim()} onClick={() => onSave(d)}>Save site</button>
+            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.name.trim()} aria-busy={saving} onClick={() => onSave(d)}>{saving && <Spinner />}{saving ? "Saving…" : "Save site"}</button>
             <button className="link" onClick={onRemove}>Cancel</button>
           </div>
         ) : (
-          <button className="link-danger" disabled={pending} aria-label={`Remove ${nm}`} onClick={onRemove}>Remove</button>
+          <div className="flex items-center gap-3">
+            <button className="link-danger inline-flex items-center gap-1.5" disabled={pending} aria-busy={removing} aria-label={`Remove ${nm}`} onClick={onRemove}>
+              {removing && <Spinner className="size-3.5" />}{removing ? "Removing…" : "Remove"}
+            </button>
+            {saving && <span className="inline-flex items-center gap-1.5 text-xs text-muted" role="status"><Spinner className="size-3.5" />Saving…</span>}
+          </div>
         )}
       </td>
     </tr>

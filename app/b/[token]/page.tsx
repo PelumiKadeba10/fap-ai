@@ -6,6 +6,7 @@ import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
 import { ATTENTION_MIN } from "@/lib/status";
 import { TRIP_STATUS, groupStops, stopStatus } from "@/lib/trip-status";
 import type { DeliveryStatus } from "@/lib/types";
+import { SubmitButton } from "@/components/submit-button";
 import { busAction } from "./actions";
 import { AutoRefresh } from "./auto-refresh";
 
@@ -114,7 +115,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
           <input type="hidden" name="trip" value={trip.id} />
           <input type="hidden" name="intent" value="depart" />
           <p className="mb-3 text-base text-[#4a525c]">{trip.status === "loading" ? "Loading at " + hub + "." : "Wait at " + hub + " while the food is loaded."} Tap when the bus is full and moving.</p>
-          <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Loaded, leaving now</button>
+          <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Loaded, leaving now</SubmitButton>
         </form>
       )}
 
@@ -165,7 +166,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
                     <input type="hidden" name="trip" value={trip.id} />
                     <input type="hidden" name="intent" value="delivered" />
                     <input type="hidden" name="stop" value={s.order} />
-                    <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Delivered here</button>
+                    <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Delivered here</SubmitButton>
                   </form>
                   {s.status !== "delayed" && (
                     <form action={busAction}>
@@ -173,7 +174,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
                       <input type="hidden" name="trip" value={trip.id} />
                       <input type="hidden" name="intent" value="problem" />
                       <input type="hidden" name="stop" value={s.order} />
-                      <button className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-4 py-3 text-lg font-semibold text-ink active:opacity-80">Problem at this stop</button>
+                      <SubmitButton className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-4 py-3 text-lg font-semibold text-ink active:opacity-80" pendingText="Sending…">Problem at this stop</SubmitButton>
                     </form>
                   )}
                 </div>
@@ -188,7 +189,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="trip" value={trip.id} />
           <input type="hidden" name="intent" value="return" />
-          <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Back at collection point</button>
+          <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Back at collection point</SubmitButton>
         </form>
       )}
       {onRoad && next && <p className="text-sm text-[#4a525c]">“Back at collection point” appears once every stop is delivered.</p>}

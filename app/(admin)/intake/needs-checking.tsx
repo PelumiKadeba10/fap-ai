@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Inbox, Loader2 } from "lucide-react";
+import { Check, Inbox } from "lucide-react";
+import { Spinner } from "@/components/spinner";
 import type { Batch, Category } from "@/lib/types";
 import { CATEGORIES } from "@/lib/urgency";
 import { fmtTime, toLagosInput } from "@/lib/format";
@@ -9,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { confirmBatch, discardBatch } from "../actions";
 import { Badge, EmptyState, Pill } from "../ui";
 import { useToast } from "../toast";
+import { useAction } from "../use-action";
 import { PhotoThumb } from "../photo-viewer";
 
 /** Food reported through collection links, waiting for a coordinator to check it. Updates live. */
@@ -47,18 +49,16 @@ function PendingItem({ batch: b, point, photo }: { batch: Batch; point?: string;
   const toast = useToast();
   const startTime = toLagosInput(b.collected_at).slice(11);
   const [d, setD] = useState({ food: b.food, qty: b.qty, category: b.category as Category, time: startTime, location: b.location, condition: b.condition ?? "", notes: b.notes ?? "" });
-  const [pending, start] = useTransition();
+  const { pending, busy, run } = useAction();
   const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((p) => ({ ...p, [k]: v }));
   const unclear = b.notes === "Needs a quantity";
 
-  const confirm = () => start(async () => {
-    const r = await confirmBatch(b.id, { food: d.food, qty: d.qty, category: d.category, collected_time: d.time !== startTime && d.time ? d.time : null, location: d.location, condition: d.condition, notes: d.notes });
-    toast(r.ok, r.ok ? `Confirmed: ${d.qty} portions of ${d.food}` : r.error);
-  });
-  const discard = () => start(async () => {
-    const r = await discardBatch(b.id);
-    toast(r.ok, r.ok ? "Submission discarded" : r.error);
-  });
+  const confirm = () => run(
+    "confirm",
+    () => confirmBatch(b.id, { food: d.food, qty: d.qty, category: d.category, collected_time: d.time !== startTime && d.time ? d.time : null, location: d.location, condition: d.condition, notes: d.notes }),
+    () => toast(true, `Confirmed: ${d.qty} portions of ${d.food}`),
+  );
+  const discard = () => run("discard", () => discardBatch(b.id), () => toast(true, "Submission discarded"));
 
   return (
     <li className="flex flex-col gap-3.5 border-t border-line py-5">
@@ -87,11 +87,13 @@ function PendingItem({ batch: b, point, photo }: { batch: Batch; point?: string;
         <label className="label sm:col-span-2">Location<input className="input" value={d.location} onChange={(e) => set("location", e.target.value)} /></label>
       </div>
       <div className="flex flex-wrap items-center gap-4">
-        <button className="btn-dark" onClick={confirm} disabled={pending || !d.food.trim() || d.qty < 1}>
-          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
-          Confirm
+        <button className="btn-dark" onClick={confirm} disabled={pending || !d.food.trim() || d.qty < 1} aria-busy={busy("confirm")}>
+          {busy("confirm") ? <Spinner /> : <Check className="size-4" aria-hidden />}
+          {busy("confirm") ? "Confirming…" : "Confirm"}
         </button>
-        <button className="link-danger" onClick={discard} disabled={pending} aria-label={`Discard submission: ${b.food}`}>Discard</button>
+        <button className="link-danger inline-flex items-center gap-1.5" onClick={discard} disabled={pending} aria-busy={busy("discard")} aria-label={`Discard submission: ${b.food}`}>
+          {busy("discard") && <Spinner className="size-3.5" />}{busy("discard") ? "Discarding…" : "Discard"}
+        </button>
       </div>
     </li>
   );

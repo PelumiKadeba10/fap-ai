@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AlertTriangle, Camera, CheckCircle2 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fmtTime } from "@/lib/format";
+import { SubmitButton } from "@/components/submit-button";
 import { submitFood } from "./actions";
 import { PhotoInput } from "./photo-input";
 
@@ -79,7 +80,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
         />
         <p className="text-sm text-[#4a525c]">Say what it is, how many, and when it was packed.</p>
         <PhotoInput />
-        <button className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80">Send</button>
+        <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Send</SubmitButton>
       </form>
 
       <section aria-labelledby="recent">

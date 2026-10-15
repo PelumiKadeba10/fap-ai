@@ -77,3 +77,6 @@ body { font-family: var(--font-sans); font-size: 15px; -webkit-font-smoothing: a
   .wrap { max-width: none; padding: 0; }
   section, tr, li { break-inside: avoid; }
 }
+
+/* A button that is waiting on the server: clear, but not washed out like a disabled one. */
+button[aria-busy="true"] { cursor: progress; opacity: 0.8 !important; }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, CalendarRange, LogOut, Menu, Settings, Shuffle, X, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SubmitButton } from "@/components/submit-button";
 import { signOut } from "./actions";
 import { Clock } from "./clock";
 import { TABS, TabBadge, isOutsideEvent, type NavCounts } from "./nav";
@@ -67,7 +68,7 @@ export function Header({ eventId, eventName, counts }: { eventId: string | null;
           <span className="hidden flex-1 md:block" />
           {!setup && <Link href="/setup" className="hidden items-center gap-1.5 text-sm text-muted hover:text-ink md:flex"><Settings className="size-4" aria-hidden />Setup</Link>}
           <span className="hidden md:block"><Clock /></span>
-          <form action={signOut} className="hidden md:block"><button className="link">Sign out</button></form>
+          <form action={signOut} className="hidden md:block"><SubmitButton className="link" pendingText="Signing out…">Sign out</SubmitButton></form>
 
           {/* Phone */}
           <div className="min-w-0 flex-1 md:hidden">
@@ -175,7 +176,7 @@ function Sidebar({ outside, eventName, counts, path, onClose, returnFocus }: {
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-line px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Clock />
           <form action={signOut}>
-            <button className="btn-line"><LogOut className="size-4" aria-hidden />Sign out</button>
+            <SubmitButton className="btn-line" pendingText="Signing out…"><LogOut className="size-4" aria-hidden />Sign out</SubmitButton>
           </form>
         </div>
       </div>

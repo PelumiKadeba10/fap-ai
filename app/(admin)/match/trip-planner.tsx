@@ -137,7 +137,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busyBusIds, sentByBat
                   <p className="mt-0.5 text-sm text-muted">This reserves the food and adds each trip to Live. Bus leads are notified next from Live. Nothing is sent automatically.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
-                  <button className="btn-dark" onClick={approve} disabled={pending} autoFocus>
+                  <button className="btn-dark" onClick={approve} disabled={pending} aria-busy={pending} autoFocus>
                     {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
                     {pending ? "Creating trips…" : `Yes, create ${count}`}
                   </button>

@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, MapPinned, MessageCircle, Plus } from "lucide-react";
 import type { CollectionPoint } from "@/lib/types";
 import { saveCollectionPoint, setCollectionPointActive } from "../actions";
 import { EmptyState, Pill, SectionHead, cardTable } from "../ui";
+import { Spinner } from "@/components/spinner";
 import { useToast } from "../toast";
+import { useAction } from "../use-action";
 
 const ACT = "btn-line min-h-9 px-3 py-1 text-[13px] max-md:min-h-11";
 
@@ -13,18 +15,11 @@ const toDraft = (p: CollectionPoint): Draft => ({ name: p.name, lead_name: p.lea
 
 export function CollectionPoints({ points, siteUrl }: { points: CollectionPoint[]; siteUrl: string }) {
   const toast = useToast();
-  const [pending, start] = useTransition();
+  const { pending, busy, run } = useAction();
   const [adding, setAdding] = useState(false);
   const [copied, setCopied] = useState("");
   const [origin, setOrigin] = useState(siteUrl);
   useEffect(() => { if (!siteUrl) setOrigin(window.location.origin); }, [siteUrl]);
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) return toast(false, r.error ?? "Something went wrong.");
-      after?.();
-    });
 
   const link = (p: CollectionPoint) => `${origin}/c/${p.token}`;
   function whatsapp(p: CollectionPoint) {
@@ -47,9 +42,9 @@ export function CollectionPoints({ points, siteUrl }: { points: CollectionPoint[
           <thead><tr><th className="th">Collection point</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {points.map((p) => (
-              <PointRow key={p.id} point={p} pending={pending}
-                onSave={(d) => run(() => saveCollectionPoint({ id: p.id, ...d }))}
-                onToggle={() => run(() => setCollectionPointActive(p.id, !p.active))}
+              <PointRow key={p.id} point={p} pending={pending} saving={busy("save:" + p.id)} toggling={busy("toggle:" + p.id)}
+                onSave={(d) => run("save:" + p.id, () => saveCollectionPoint({ id: p.id, ...d }))}
+                onToggle={() => run("toggle:" + p.id, () => setCollectionPointActive(p.id, !p.active))}
                 actions={p.active ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <button className={ACT} onClick={() => copy(p)}>
@@ -62,8 +57,8 @@ export function CollectionPoints({ points, siteUrl }: { points: CollectionPoint[
               />
             ))}
             {adding && (
-              <PointRow point={null} pending={pending} onToggle={() => setAdding(false)}
-                onSave={(d) => run(() => saveCollectionPoint(d), () => setAdding(false))} actions={null} />
+              <PointRow point={null} pending={pending} saving={busy("save:new")} toggling={false} onToggle={() => setAdding(false)}
+                onSave={(d) => run("save:new", () => saveCollectionPoint(d), () => setAdding(false))} actions={null} />
             )}
           </tbody>
         </table>
@@ -79,8 +74,8 @@ export function CollectionPoints({ points, siteUrl }: { points: CollectionPoint[
   );
 }
 
-function PointRow({ point, pending, onSave, onToggle, actions }: {
-  point: CollectionPoint | null; pending: boolean; onSave: (d: Draft) => void; onToggle: () => void; actions: React.ReactNode;
+function PointRow({ point, pending, saving, toggling, onSave, onToggle, actions }: {
+  point: CollectionPoint | null; pending: boolean; saving: boolean; toggling: boolean; onSave: (d: Draft) => void; onToggle: () => void; actions: React.ReactNode;
 }) {
   const isNew = !point;
   const [d, setD] = useState<Draft>(point ? toDraft(point) : { name: "", lead_name: "", lead_phone: "" });
@@ -97,12 +92,12 @@ function PointRow({ point, pending, onSave, onToggle, actions }: {
       <td className="cell" data-label="">
         {isNew ? (
           <div className="flex items-center gap-3">
-            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.name.trim()} onClick={() => onSave(d)}>Save</button>
+            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.name.trim()} aria-busy={saving} onClick={() => onSave(d)}>{saving && <Spinner />}{saving ? "Saving…" : "Save"}</button>
             <button className="link" onClick={onToggle}>Cancel</button>
           </div>
         ) : (
-          <button className={point.active ? "link-danger" : "link"} disabled={pending} onClick={onToggle} aria-label={`${point.active ? "Switch off" : "Switch on"} ${nm}`}>
-            {point.active ? "Switch off" : "Switch on"}
+          <button className={`${point.active ? "link-danger" : "link"} inline-flex items-center gap-1.5`} disabled={pending} aria-busy={toggling} onClick={onToggle} aria-label={`${point.active ? "Switch off" : "Switch on"} ${nm}`}>
+            {toggling && <Spinner className="size-3.5" />}{toggling ? "Saving…" : point.active ? "Switch off" : "Switch on"}
           </button>
         )}
       </td>

@@ -101,7 +101,7 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <button className="btn-dark" onClick={parse} disabled={parsing || !message.trim()}>
+          <button className="btn-dark" onClick={parse} disabled={parsing || !message.trim()} aria-busy={parsing}>
             {parsing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <MessageSquareText className="size-4" aria-hidden />}
             {parsing ? "Reading message…" : "Parse message"}
           </button>
@@ -153,7 +153,7 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
               </div>
             )}
             <div className="flex flex-wrap items-center gap-3">
-              <button className="btn-dark max-sm:flex-1" onClick={save} disabled={saving || !rec.food || rec.quantity < 1 || (hubs.length > 0 && !hubId)}>
+              <button className="btn-dark max-sm:flex-1" onClick={save} aria-busy={saving} disabled={saving || !rec.food || rec.quantity < 1 || (hubs.length > 0 && !hubId)}>
                 {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Save className="size-4" aria-hidden />}
                 {saving ? "Saving…" : "Save batch"}
               </button>

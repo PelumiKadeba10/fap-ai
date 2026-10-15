@@ -1,17 +1,16 @@
 "use client";
-import { useTransition } from "react";
 import type { Batch } from "@/lib/types";
 import { CATEGORIES, urgency } from "@/lib/urgency";
 import { fmtDur, fmtTime, n0 } from "@/lib/format";
 import { removeBatch } from "../actions";
 import { EmptyState, SectionHead, UrgencyPill, cardTable } from "../ui";
-import { useToast } from "../toast";
+import { Spinner } from "@/components/spinner";
+import { useAction } from "../use-action";
 import { PhotoIcon } from "../photo-viewer";
 import { PackageOpen } from "lucide-react";
 
 export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: Record<string, number>; photos: Record<string, string> }) {
-  const toast = useToast();
-  const [pending, start] = useTransition();
+  const { pending, busy, run } = useAction();
   const now = new Date();
   const total = batches.reduce((t, b) => t + b.qty, 0);
   const newest = [...batches].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -41,8 +40,8 @@ export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: 
                   <td className="cell font-mono" data-label="Safe for">{u.minutesLeft > 0 ? fmtDur(u.minutesLeft) : <span className="font-sans font-medium text-crit">Expired</span>}</td>
                   <td className="cell" data-label="">
                     {out === 0 && (
-                      <button className="link-danger" disabled={pending} aria-label={`Remove ${b.food}`} onClick={() => start(async () => { const r = await removeBatch(b.id); if (!r.ok) toast(false, r.error); })}>
-                        Remove
+                      <button className="link-danger inline-flex items-center gap-1.5" disabled={pending} aria-busy={busy(b.id)} aria-label={`Remove ${b.food}`} onClick={() => run(b.id, () => removeBatch(b.id))}>
+                        {busy(b.id) && <Spinner className="size-3.5" />}{busy(b.id) ? "Removing…" : "Remove"}
                       </button>
                     )}
                   </td>

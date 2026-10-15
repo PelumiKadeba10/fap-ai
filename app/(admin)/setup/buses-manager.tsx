@@ -1,26 +1,19 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Bus as BusIcon, Plus } from "lucide-react";
 import type { Bus } from "@/lib/types";
 import { saveBus, setBusActive } from "../actions";
 import { EmptyState, Pill, SectionHead, cardTable } from "../ui";
-import { useToast } from "../toast";
+import { Spinner } from "@/components/spinner";
+import { useAction } from "../use-action";
 
 type Draft = { name: string; capacity: number; lead_name: string; lead_phone: string };
 const toDraft = (b: Bus): Draft => ({ name: b.name, capacity: b.capacity, lead_name: b.lead_name ?? "", lead_phone: b.lead_phone ?? "" });
 
 /** Add, edit and switch off buses. Buses are shared by every event. */
 export function BusesManager({ buses, busyIds }: { buses: Bus[]; busyIds: string[] }) {
-  const toast = useToast();
-  const [pending, start] = useTransition();
+  const { pending, busy: isBusy, run } = useAction();
   const [adding, setAdding] = useState(false);
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) return toast(false, r.error ?? "Something went wrong.");
-      after?.();
-    });
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="buses-title">
@@ -33,11 +26,11 @@ export function BusesManager({ buses, busyIds }: { buses: Bus[]; busyIds: string
           <thead><tr><th className="th">Bus</th><th className="th">Capacity (packs)</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {buses.map((b) => (
-              <BusRow key={b.id} bus={b} pending={pending} busy={busyIds.includes(b.id)}
-                onSave={(d) => run(() => saveBus({ id: b.id, ...d }))}
-                onToggle={() => run(() => setBusActive(b.id, !b.active))} />
+              <BusRow key={b.id} bus={b} pending={pending} busy={busyIds.includes(b.id)} saving={isBusy("save:" + b.id)} toggling={isBusy("toggle:" + b.id)}
+                onSave={(d) => run("save:" + b.id, () => saveBus({ id: b.id, ...d }))}
+                onToggle={() => run("toggle:" + b.id, () => setBusActive(b.id, !b.active))} />
             ))}
-            {adding && <BusRow bus={null} pending={pending} busy={false} onToggle={() => setAdding(false)} onSave={(d) => run(() => saveBus(d), () => setAdding(false))} />}
+            {adding && <BusRow bus={null} pending={pending} busy={false} saving={isBusy("save:new")} toggling={false} onToggle={() => setAdding(false)} onSave={(d) => run("save:new", () => saveBus(d), () => setAdding(false))} />}
           </tbody>
         </table>
       ) : (
@@ -52,7 +45,7 @@ export function BusesManager({ buses, busyIds }: { buses: Bus[]; busyIds: string
   );
 }
 
-function BusRow({ bus, pending, busy, onSave, onToggle }: { bus: Bus | null; pending: boolean; busy: boolean; onSave: (d: Draft) => void; onToggle: () => void }) {
+function BusRow({ bus, pending, busy, saving, toggling, onSave, onToggle }: { bus: Bus | null; pending: boolean; busy: boolean; saving: boolean; toggling: boolean; onSave: (d: Draft) => void; onToggle: () => void }) {
   const isNew = !bus;
   const [d, setD] = useState<Draft>(bus ? toDraft(bus) : { name: "", capacity: 400, lead_name: "", lead_phone: "" });
   const commit = () => { if (bus && d.name.trim() && d.capacity > 0 && JSON.stringify(toDraft(bus)) !== JSON.stringify(d)) onSave(d); };
@@ -67,15 +60,16 @@ function BusRow({ bus, pending, busy, onSave, onToggle }: { bus: Bus | null; pen
       <td className="cell" data-label="">
         {isNew ? (
           <div className="flex items-center gap-3">
-            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.name.trim() || d.capacity < 1} onClick={() => onSave(d)}>Save</button>
+            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.name.trim() || d.capacity < 1} aria-busy={saving} onClick={() => onSave(d)}>{saving && <Spinner />}{saving ? "Saving…" : "Save"}</button>
             <button className="link" onClick={onToggle}>Cancel</button>
           </div>
         ) : (
           <div className="flex items-center gap-3">
             {busy && <Pill tone="blue">On a trip</Pill>}
-            <button className={bus.active ? "link-danger" : "link"} disabled={pending || busy} onClick={onToggle} aria-label={`${bus.active ? "Switch off" : "Switch on"} ${nm}`}>
-              {bus.active ? "Switch off" : "Switch on"}
+            <button className={`${bus.active ? "link-danger" : "link"} inline-flex items-center gap-1.5`} disabled={pending || busy} aria-busy={toggling} onClick={onToggle} aria-label={`${bus.active ? "Switch off" : "Switch on"} ${nm}`}>
+              {toggling && <Spinner className="size-3.5" />}{toggling ? "Saving…" : bus.active ? "Switch off" : "Switch on"}
             </button>
+            {saving && <span className="inline-flex items-center gap-1.5 text-xs text-muted" role="status"><Spinner className="size-3.5" />Saving…</span>}
           </div>
         )}
       </td>
