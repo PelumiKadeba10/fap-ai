@@ -1,4 +1,4 @@
-import { getActiveEvent } from "@/lib/data";
+import { getActiveEvent, getEvents } from "@/lib/data";
 import { PageHeader } from "../ui";
 import { EventForm } from "./event-form";
 
@@ -6,6 +6,8 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
   const { new: isNew } = await searchParams;
   const creating = isNew === "1";
   const event = creating ? null : await getActiveEvent();
+  // The most recent event, offered as a setup to copy when creating a new one.
+  const last = creating ? (await getEvents())[0] : null;
   return (
     <>
       <PageHeader
@@ -15,7 +17,7 @@ export default async function EventPage({ searchParams }: { searchParams: Promis
           ? "Its food, deliveries and impact report are kept separate from your other events."
           : "Enter the event details to estimate surplus and plan volunteers and transport."}
       />
-      <EventForm key={event?.id ?? "new"} event={event} />
+      <EventForm key={event?.id ?? "new"} event={event} copyFrom={last ? { id: last.id, name: last.name } : null} />
     </>
   );
 }

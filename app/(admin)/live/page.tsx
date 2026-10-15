@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getBusLinks, getBuses, getCollectionPoints, getDeliveries, getSites, getTrips } from "@/lib/data";
+import { getActiveEvent, getBatches, getBusLinks, getBuses, getCollectionPoints, getDeliveries, getEventSites, getSites, getTrips } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageHeader } from "../ui";
+import { SetupSummary } from "../setup-summary";
 import { LiveBoard } from "./live-board";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +12,13 @@ export default async function LivePage() {
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
 
   const supabase = await createClient();
-  const [deliveries, batches, sites, trips, buses, busLinks, hubs, updates] = await Promise.all([
+  const [deliveries, batches, sites, eventSites, trips, buses, busLinks, hubs, updates] = await Promise.all([
     getDeliveries(event.id),
     getBatches(event.id),
     getSites(),
+    getEventSites(event.id),
     getTrips(event.id),
-    getBuses(),
+    getBuses(event.id),
     getBusLinks(event.id),
     getCollectionPoints(event.id),
     supabase
@@ -33,6 +35,7 @@ export default async function LivePage() {
         title="Every bus at a glance."
         description="Each bus lead taps updates on their bus link. Send it once, watch progress, and step in when a stop is late or a bus is stuck."
       />
+      <SetupSummary places={eventSites.length} people={eventSites.reduce((t, s) => t + s.people, 0)} buses={buses.filter((b) => b.active).length} />
       {deliveries.length === 0 && trips.length === 0 ? (
         <EmptyState action={<Link href="/match">Go to Plan trips</Link>}>No trips yet. Plan and approve trips to start dispatching.</EmptyState>
       ) : (

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PHOTO_BUCKET } from "@/lib/photo";
-import { getActiveEvent, getBatches, getBusyBusIds, getBuses, getDeliveries, getSites, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getBusyBusIds, getBuses, getDeliveries, getEventSites, sumBy } from "@/lib/data";
 import { lagosTimeToday } from "@/lib/format";
 import { runMatching } from "@/lib/match";
 import { urgency } from "@/lib/urgency";
@@ -43,13 +43,15 @@ const EventInput = z.object({
   vendors: z.coerce.number().int().min(1).max(40),
   starts_at: z.string().datetime(),
   duration_hours: z.coerce.number().positive().max(24),
+  // When creating: copy places, collection points and buses from this earlier event.
+  copy_from: z.string().uuid().optional(),
 });
 
 export async function saveEvent(input: z.input<typeof EventInput>): Promise<Result> {
   const parsed = EventInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Check the event details: every field needs a valid value." };
   const supabase = await db();
-  const { id, ...row } = parsed.data;
+  const { id, copy_from, ...row } = parsed.data;
   if (id) {
     const { error } = await supabase.from("events").update(row).eq("id", id);
     if (error) return { ok: false, error: error.message };
@@ -57,6 +59,10 @@ export async function saveEvent(input: z.input<typeof EventInput>): Promise<Resu
     const { data, error } = await supabase.from("events").insert({ ...row, active: true }).select("id").single();
     if (error) return { ok: false, error: error.message };
     await setEventCookie(data.id);
+    if (copy_from) {
+      const copied = await copySetupInto(supabase, copy_from, data.id);
+      if (!copied.ok) return { ok: false, error: "The event was created, but copying the setup failed: " + copied.error };
+    }
   }
   revalidatePath("/", "layout");
   return { ok: true };
@@ -186,6 +192,7 @@ export async function discardBatch(id: string): Promise<Result> {
 const PointInput = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(60),
+  location_note: z.string().trim().max(120).nullable().optional(),
   lead_name: z.string().trim().max(60).nullable().optional(),
   lead_phone: z.string().trim().max(30).nullable().optional(),
 });
@@ -198,10 +205,10 @@ export async function saveCollectionPoint(input: z.input<typeof PointInput>): Pr
   const supabase = await db();
   const { id, ...row } = parsed.data;
   const { error } = id
-    ? await supabase.from("collection_points").update(row).eq("id", id)
+    ? await supabase.from("collection_points").update(row).eq("id", id).eq("event_id", event.id)
     : await supabase.from("collection_points").insert({ ...row, event_id: event.id });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/intake");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -210,41 +217,139 @@ export async function setCollectionPointActive(id: string, active: boolean): Pro
   const supabase = await db();
   const { error } = await supabase.from("collection_points").update({ active }).eq("id", id);
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/intake");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
-/* ---------- Sites ---------- */
+/* ---------- Places (shared list) and this event's places ---------- */
 
-const SiteInput = z.object({
-  id: z.string().uuid().optional(),
+const PlaceDetails = z.object({
   name: z.string().trim().min(1).max(60),
   kind: z.enum(["School", "Community", "Care home", "Shelter", "Other"]),
-  people: z.coerce.number().int().min(0).nullable(),
   km: z.coerce.number().positive().max(60),
   direction: z.enum(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]),
   contact_name: z.string().trim().max(60).nullable().optional(),
   contact_phone: z.string().trim().max(30).nullable().optional(),
 });
+const People = z.coerce.number().int().min(0).max(100000);
+const PLACE_ERROR = "A place needs a name and a road distance above 0 km.";
 
-export async function saveSite(input: z.input<typeof SiteInput>): Promise<Result> {
-  const parsed = SiteInput.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "A site needs a name and a road distance above 0 km." };
+/** Creates a new place in the shared list and adds it to the selected event. */
+export async function createPlace(input: z.input<typeof PlaceDetails> & { people: number }): Promise<Result> {
+  const details = PlaceDetails.safeParse(input);
+  const people = People.safeParse(input.people);
+  if (!details.success || !people.success) return { ok: false, error: PLACE_ERROR };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
   const supabase = await db();
-  const { id, ...row } = parsed.data;
-  const { error } = id ? await supabase.from("sites").update(row).eq("id", id) : await supabase.from("sites").insert(row);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath("/match");
+  // sites.people is only the default for future events; this event's number lives in event_sites.
+  const { data: site, error } = await supabase.from("sites").insert({ ...details.data, people: people.data }).select("id").single();
+  if (error || !site) return { ok: false, error: error?.message ?? "Couldn’t save the place." };
+  const { error: linkError } = await supabase.from("event_sites").insert({ event_id: event.id, site_id: site.id, people: people.data });
+  if (linkError) return { ok: false, error: linkError.message };
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
-export async function removeSite(id: string): Promise<Result> {
+/** Adds a saved place to the selected event. */
+export async function addEventSite(siteId: string, peopleIn: number): Promise<Result> {
+  const people = People.safeParse(peopleIn);
+  if (!z.string().uuid().safeParse(siteId).success || !people.success) return { ok: false, error: "Choose a place and a number of people." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
   const supabase = await db();
-  // Keep history: hide the site instead of deleting it.
-  const { error } = await supabase.from("sites").update({ active: false }).eq("id", id);
+  const { error } = await supabase.from("event_sites").upsert({ event_id: event.id, site_id: siteId, people: people.data }, { onConflict: "event_id,site_id" });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/match");
+  revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/** Changes how many people this event needs fed at a place. */
+export async function setEventSitePeople(siteId: string, peopleIn: number): Promise<Result> {
+  const people = People.safeParse(peopleIn);
+  if (!z.string().uuid().safeParse(siteId).success || !people.success) return { ok: false, error: "Enter a number of people, zero or more." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "No event selected." };
+  const supabase = await db();
+  const { error } = await supabase.from("event_sites").update({ people: people.data }).eq("event_id", event.id).eq("site_id", siteId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Removes a place from this event only. The place itself, and its history, stay in the shared list. */
+export async function removeEventSite(siteId: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(siteId).success) return { ok: false, error: "Unknown place." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "No event selected." };
+  const supabase = await db();
+  const { error } = await supabase.from("event_sites").delete().eq("event_id", event.id).eq("site_id", siteId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Edits the shared place (name, type, distance, contact). Changes apply to every event. */
+export async function updatePlaceDetails(siteId: string, input: z.input<typeof PlaceDetails>): Promise<Result> {
+  const details = PlaceDetails.safeParse(input);
+  if (!z.string().uuid().safeParse(siteId).success || !details.success) return { ok: false, error: PLACE_ERROR };
+  const supabase = await db();
+  const { error } = await supabase.from("sites").update(details.data).eq("id", siteId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ---------- Copy setup from an earlier event ---------- */
+
+/** Copies places (with their people), collection points and buses. Never food, trips or deliveries. Tables that already have rows are left alone. */
+async function copySetupInto(supabase: Awaited<ReturnType<typeof db>>, fromId: string, toId: string): Promise<{ ok: true; places: number; points: number; buses: number } | { ok: false; error: string }> {
+  const isEmpty = async (table: string) => {
+    const { count } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("event_id", toId);
+    return !count;
+  };
+  const out = { places: 0, points: 0, buses: 0 };
+
+  if (await isEmpty("event_sites")) {
+    const { data } = await supabase.from("event_sites").select("site_id, people").eq("event_id", fromId);
+    if (data?.length) {
+      const { error } = await supabase.from("event_sites").insert(data.map((r) => ({ event_id: toId, site_id: r.site_id, people: r.people })));
+      if (error) return { ok: false, error: error.message };
+      out.places = data.length;
+    }
+  }
+  if (await isEmpty("collection_points")) {
+    // New rows get new ids and new link tokens.
+    const { data } = await supabase.from("collection_points").select("name, location_note, lead_name, lead_phone, active").eq("event_id", fromId);
+    if (data?.length) {
+      const { error } = await supabase.from("collection_points").insert(data.map((r) => ({ ...r, event_id: toId })));
+      if (error) return { ok: false, error: error.message };
+      out.points = data.length;
+    }
+  }
+  if (await isEmpty("buses")) {
+    const { data } = await supabase.from("buses").select("name, capacity, lead_name, lead_phone, active").eq("event_id", fromId);
+    if (data?.length) {
+      const { data: created, error } = await supabase.from("buses").insert(data.map((r) => ({ ...r, event_id: toId }))).select("id");
+      if (error) return { ok: false, error: error.message };
+      out.buses = data.length;
+      await supabase.from("bus_links").upsert((created ?? []).map((b) => ({ event_id: toId, bus_id: b.id })), { onConflict: "event_id,bus_id", ignoreDuplicates: true });
+    }
+  }
+  return { ok: true, ...out };
+}
+
+/** "Copy from <previous event>" on the Setup tab. */
+export async function copySetup(fromEventId: string): Promise<Result & { copied?: string }> {
+  if (!z.string().uuid().safeParse(fromEventId).success) return { ok: false, error: "Unknown event." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "No event selected." };
+  if (event.id === fromEventId) return { ok: false, error: "Choose a different event to copy from." };
+  const supabase = await db();
+  const r = await copySetupInto(supabase, fromEventId, event.id);
+  if (!r.ok) return r;
+  revalidatePath("/", "layout");
+  return { ok: true, copied: r.places + " places, " + r.points + " collection points, " + r.buses + " buses" };
 }
 
 /* ---------- Matching ---------- */
@@ -253,7 +358,7 @@ export async function removeSite(id: string): Promise<Result> {
 export async function approvePlan(): Promise<Result & { created?: number }> {
   const event = await getActiveEvent();
   if (!event) return { ok: false, error: "No active event." };
-  const [batches, sites, deliveries] = await Promise.all([getBatches(event.id, "approved"), getSites(), getDeliveries(event.id)]);
+  const [batches, sites, deliveries] = await Promise.all([getBatches(event.id, "approved"), getEventSites(event.id), getDeliveries(event.id)]);
   const sentByBatch = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
   const sentBySite = sumBy(deliveries, (d) => d.site_id, (d) => d.qty);
   const now = new Date();
@@ -300,7 +405,7 @@ export async function approveTrips(busIds: (string | null)[]): Promise<Result & 
   const event = await getActiveEvent();
   if (!event) return { ok: false, error: "No active event." };
   const [batches, sites, deliveries, buses, busy] = await Promise.all([
-    getBatches(event.id, "approved"), getSites(), getDeliveries(event.id), getBuses(), getBusyBusIds(),
+    getBatches(event.id, "approved"), getEventSites(event.id), getDeliveries(event.id), getBuses(event.id), getBusyBusIds(),
   ]);
   const sentByBatch = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
   const sentBySite = sumBy(deliveries, (d) => d.site_id, (d) => d.qty);
@@ -360,7 +465,9 @@ export async function setTripBus(tripId: string, busId: string | null): Promise<
   const ok = z.string().uuid().safeParse(tripId).success && (busId === null || z.string().uuid().safeParse(busId).success);
   if (!ok) return { ok: false, error: "Unknown trip or bus." };
   if (busId) {
-    const [buses, busy] = await Promise.all([getBuses(), getBusyBusIds()]);
+    const activeEvent = await getActiveEvent();
+    if (!activeEvent) return { ok: false, error: "No event selected." };
+    const [buses, busy] = await Promise.all([getBuses(activeEvent.id), getBusyBusIds()]);
     const bus = buses.find((b) => b.id === busId);
     if (!bus?.active) return { ok: false, error: "That bus isn’t available." };
     const supabase = await db();
@@ -432,10 +539,20 @@ const BusInput = z.object({
 export async function saveBus(input: z.input<typeof BusInput>): Promise<Result> {
   const parsed = BusInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: "A bus needs a name and a capacity above zero." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
   const supabase = await db();
   const { id, ...row } = parsed.data;
-  const { error } = id ? await supabase.from("buses").update(row).eq("id", id) : await supabase.from("buses").insert(row);
-  if (error) return { ok: false, error: error.message };
+  if (id) {
+    const { error } = await supabase.from("buses").update(row).eq("id", id).eq("event_id", event.id);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { data, error } = await supabase.from("buses").insert({ ...row, event_id: event.id }).select("id").single();
+    if (error || !data) return { ok: false, error: error?.message ?? "Couldn’t save the bus." };
+    // The bus lead's link for this event exists from the start.
+    const linkError = await ensureBusLinks(supabase, event.id, [data.id]);
+    if (linkError) return { ok: false, error: linkError };
+  }
   revalidatePath("/", "layout");
   return { ok: true };
 }

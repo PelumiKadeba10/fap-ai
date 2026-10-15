@@ -35,6 +35,7 @@ export interface Site {
   contact_phone: string | null;
   notes: string | null;
   active: boolean;
+  created_at?: string;
 }
 
 export interface Volunteer {
@@ -66,6 +67,7 @@ export interface CollectionPoint {
   id: string;
   event_id: string;
   name: string;
+  location_note: string | null;
   lead_name: string | null;
   lead_phone: string | null;
   token: string;
@@ -103,8 +105,12 @@ export interface ParsedRecord {
   notes: string;
 }
 
+/** A place on this event's list: the shared site, with this event's own "people to feed" number. */
+export type EventPlace = Omit<Site, "people"> & { people: number; event_site_id: string };
+
 export interface Bus {
   id: string;
+  event_id: string;
   name: string;
   capacity: number;
   lead_name: string | null;

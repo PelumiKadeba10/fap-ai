@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarPlus, Settings } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { getEventOverview, type EventOverview } from "@/lib/data";
 import { EVENT_TYPES, predict } from "@/lib/predict";
 import { TZ, n0 } from "@/lib/format";
@@ -11,10 +11,6 @@ import { EmptyState, PageHeader, Pill } from "./ui";
 export const dynamic = "force-dynamic";
 
 const when = new Intl.DateTimeFormat("en-NG", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
-
-const SetupLink = () => (
-  <Link href="/setup" className="btn-line"><Settings className="size-4" aria-hidden />Setup</Link>
-);
 
 const NewEvent = () => (
   <Link href="/event?new=1" className="btn-dark"><CalendarPlus className="size-4" aria-hidden />New event</Link>
@@ -30,7 +26,7 @@ export default async function OverviewPage() {
 
   return (
     <>
-      <PageHeader title="Events" description="Pick an event to work on it. Each event keeps its own food, trips and report." actions={<><SetupLink /><NewEvent /></>} />
+      <PageHeader title="Events" description="Pick an event to work on it. Each event keeps its own food, trips and report." actions={<NewEvent />} />
       {all.length === 0 ? (
         <EmptyState action={<NewEvent />}>No events yet.</EmptyState>
       ) : (

@@ -4,7 +4,7 @@ import { EVENT_COOKIE } from "./event-cookie";
 import { foodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
-import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
+import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
 
@@ -43,7 +43,7 @@ export async function getCollectionPoints(eventId: string): Promise<CollectionPo
   return (data ?? []) as CollectionPoint[];
 }
 
-export type EventCounts = { pending: number; waiting: number; waitingBatches: number };
+export type EventCounts = { pendingBatches: number; portionsWaiting: number };
 
 /** Waiting work for the nav badges: batches to check on Food intake, and approved portions not yet on a trip. */
 export async function getEventCounts(eventId: string): Promise<EventCounts> {
@@ -55,7 +55,7 @@ export async function getEventCounts(eventId: string): Promise<EventCounts> {
   const batches = (b.data ?? []) as { id: string; qty: number; review_status: ReviewStatus }[];
   const deliveries = (d.data ?? []) as { batch_id: string; qty: number }[];
   const w = foodWaiting(batches, deliveries);
-  return { pending: batches.filter((x) => x.review_status === "pending").length, waiting: w.portions, waitingBatches: w.batches };
+  return { pendingBatches: batches.filter((x) => x.review_status === "pending").length, portionsWaiting: w.portions };
 }
 
 export async function getSites(): Promise<Site[]> {
@@ -97,11 +97,32 @@ export async function getPhotoUrls(batches: { id: string; photo_path: string | n
   return out;
 }
 
-export async function getBuses(): Promise<Bus[]> {
+/** Buses of one event. */
+export async function getBuses(eventId: string): Promise<Bus[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("buses").select("*").order("name");
+  const { data, error } = await supabase.from("buses").select("*").eq("event_id", eventId).order("name");
   if (error) throw error;
   return (data ?? []) as Bus[];
+}
+
+/** The places of one event: each shared site with this event's own "people to feed". Matching and planning read this. */
+export async function getEventSites(eventId: string): Promise<EventPlace[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("event_sites").select("id, people, sites(*)").eq("event_id", eventId);
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as { id: string; people: number; sites: Site | null }[];
+  return rows
+    .filter((r) => r.sites && r.sites.active)
+    .map((r) => ({ ...(r.sites as Site), people: r.people, event_site_id: r.id }))
+    .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+}
+
+/** Gives every bus of the event its link for the event (one per bus per event). Safe to call repeatedly. */
+export async function ensureBusLinksForEvent(eventId: string): Promise<void> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("buses").select("id").eq("event_id", eventId);
+  if (!data?.length) return;
+  await supabase.from("bus_links").upsert(data.map((b) => ({ event_id: eventId, bus_id: b.id })), { onConflict: "event_id,bus_id", ignoreDuplicates: true });
 }
 
 export async function getTrips(eventId: string): Promise<Trip[]> {

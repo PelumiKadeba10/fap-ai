@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, CalendarRange, LogOut, Menu, Settings, Shuffle, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, CalendarRange, LogOut, Menu, Shuffle, X, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SubmitButton } from "@/components/submit-button";
 import { signOut } from "./actions";
@@ -25,12 +25,11 @@ function Logo({ className = "" }: { className?: string }) {
 export function Header({ eventId, eventName, counts }: { eventId: string | null; eventName: string | null; counts: NavCounts }) {
   const path = usePathname();
   const router = useRouter();
-  const outside = isOutsideEvent(path); // overview and setup aren't inside an event
-  const setup = path.startsWith("/setup");
+  const outside = isOutsideEvent(path); // the events overview isn't inside an event
   const [open, setOpen] = useState(false);
   const menuBtn = useRef<HTMLButtonElement>(null);
   const tab = TABS.find(([href]) => path.startsWith(href));
-  const waiting = counts.pending > 0 || counts.waiting > 0;
+  const waiting = counts.pendingBatches > 0 || counts.portionsWaiting > 0;
 
   // Close the menu whenever the route changes.
   useEffect(() => { setOpen(false); }, [path]);
@@ -64,16 +63,14 @@ export function Header({ eventId, eventName, counts }: { eventId: string | null;
               <span className="hidden max-w-[24rem] min-w-0 truncate rounded-full bg-soft px-3 py-1 text-sm font-medium md:block" title={eventName ?? undefined}>{eventName ?? "No event selected"}</span>
             </>
           )}
-          {setup && <Link href="/" className="hidden items-center gap-1.5 text-sm text-muted hover:text-ink md:flex"><ArrowLeft className="size-4" aria-hidden />All events</Link>}
           <span className="hidden flex-1 md:block" />
-          {!setup && <Link href="/setup" className="hidden items-center gap-1.5 text-sm text-muted hover:text-ink md:flex"><Settings className="size-4" aria-hidden />Setup</Link>}
           <span className="hidden md:block"><Clock /></span>
           <form action={signOut} className="hidden md:block"><SubmitButton className="link" pendingText="Signing out…">Sign out</SubmitButton></form>
 
           {/* Phone */}
           <div className="min-w-0 flex-1 md:hidden">
             {outside ? (
-              <p className="truncate text-sm font-semibold">{setup ? "Setup" : "Events"}</p>
+              <p className="truncate text-sm font-semibold">Events</p>
             ) : (
               <>
                 <p className="truncate text-sm leading-tight font-semibold">{eventName ?? "No event selected"}</p>
@@ -153,7 +150,6 @@ function Sidebar({ outside, eventName, counts, path, onClose, returnFocus }: {
         {outside ? (
           <nav aria-label="Menu" className="flex flex-col px-2 py-2">
             <NavItem href="/" label="Events" Icon={CalendarRange} on={path === "/"} />
-            <NavItem href="/setup" label="Setup: places & buses" Icon={Settings} on={path.startsWith("/setup")} />
           </nav>
         ) : (
           <>
@@ -167,9 +163,6 @@ function Sidebar({ outside, eventName, counts, path, onClose, returnFocus }: {
                 <NavItem key={href} href={href} label={label} Icon={Icon} on={path.startsWith(href)} badge={<TabBadge href={href} counts={counts} />} />
               ))}
             </nav>
-            <div className="border-t border-line px-2 py-2">
-              <NavItem href="/setup" label="Setup: places & buses" Icon={Settings} on={false} />
-            </div>
           </>
         )}
 

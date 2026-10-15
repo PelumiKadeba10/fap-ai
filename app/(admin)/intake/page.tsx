@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ChevronRight, MapPinned } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getPhotoUrls, sumBy } from "@/lib/data";
 import { EmptyState, PageHeader } from "../ui";
 import { IntakeBox } from "./intake-box";
 import { BatchTable } from "./batch-table";
 import { NeedsChecking } from "./needs-checking";
-import { CollectionPoints } from "./collection-points";
+import { SetupSummary } from "../setup-summary";
 
 export default async function IntakePage() {
   const event = await getActiveEvent();
@@ -28,12 +28,7 @@ export default async function IntakePage() {
         description="Each collection point reports food from its own link. Check every submission before it is matched. FAP AI reads the message and scores its urgency."
       />
 
-      {points.length === 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-l-4 border-orange bg-[#fffaf0] px-4 py-3.5" role="status">
-          <p className="flex items-start gap-2 text-[15px] font-medium"><MapPinned className="mt-0.5 size-4 shrink-0" aria-hidden />No collection points yet for this event. Add each collection point to give it a link for reporting food.</p>
-          <a href="#collection-points" className="text-sm font-semibold underline underline-offset-4">Add collection points</a>
-        </div>
-      )}
+      <SetupSummary points={points.length} />
 
       <NeedsChecking eventId={event.id} batches={pending} pointNames={Object.fromEntries(points.map((p) => [p.id, p.name]))} photos={photos} />
       <BatchTable batches={approved} sent={Object.fromEntries(sent)} photos={photos} />
@@ -47,7 +42,6 @@ export default async function IntakePage() {
         <IntakeBox hubs={points.filter((p) => p.active)} />
       </details>
 
-      <CollectionPoints points={points} siteUrl={process.env.SITE_URL ?? ""} />
     </>
   );
 }

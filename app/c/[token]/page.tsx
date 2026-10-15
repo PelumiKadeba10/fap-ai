@@ -9,7 +9,7 @@ import { PhotoInput } from "./photo-input";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Report food · FAP AI", robots: { index: false } };
 
-type Point = { id: string; name: string; active: boolean; events: { name: string } | null };
+type Point = { id: string; name: string; location_note: string | null; active: boolean; events: { name: string } | null };
 type Sub = { id: string; food: string; qty: number; notes: string | null; review_status: "pending" | "approved"; photo_path: string | null; created_at: string };
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -19,7 +19,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const { e, ok, photo } = await searchParams;
   const db = createAdminClient();
   const { data: cp } = /^[a-f0-9]{32}$/.test(token)
-    ? await db.from("collection_points").select("id, name, active, events(name)").eq("token", token).maybeSingle<Point>()
+    ? await db.from("collection_points").select("id, name, location_note, active, events(name)").eq("token", token).maybeSingle<Point>()
     : { data: null };
 
   if (!cp) {
@@ -53,6 +53,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
       <div>
         <p className="text-base text-[#4a525c]">{cp.events?.name}</p>
         <h1 className="mt-1 text-[28px] leading-tight font-semibold">{cp.name}</h1>
+        {cp.location_note && <p className="mt-1 text-base text-[#4a525c]">{cp.location_note}</p>}
       </div>
 
       {banner && (

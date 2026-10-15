@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getPhotoUrls, getSites, getTrips, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getEventSites, getPhotoUrls, getTrips, sumBy } from "@/lib/data";
 import { predict } from "@/lib/predict";
 import { fmtDur, fmtTime, minutesBetween, n0 } from "@/lib/format";
 import { siteNeed } from "@/lib/match";
@@ -15,7 +15,7 @@ export default async function ImpactPage() {
   const event = await getActiveEvent();
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
   const [batches, deliveries, sites, hubs, trips, buses] = await Promise.all([
-    getBatches(event.id, "approved"), getDeliveries(event.id), getSites(), getCollectionPoints(event.id), getTrips(event.id), getBuses(),
+    getBatches(event.id, "approved"), getDeliveries(event.id), getEventSites(event.id), getCollectionPoints(event.id), getTrips(event.id), getBuses(event.id),
   ]);
 
   const recovered = batches.reduce((t, b) => t + b.qty, 0);

@@ -9,7 +9,9 @@ import { Stat } from "../ui";
 import { useToast } from "../toast";
 import { Check, ChevronRight, Loader2 } from "lucide-react";
 
-export function EventForm({ event }: { event: EventRow | null }) {
+/** `copyFrom` is the last event, offered as a setup to copy (places, collection points, buses) when creating a new one. */
+export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFrom?: { id: string; name: string } | null }) {
+  const [copy, setCopy] = useState(true);
   const [f, setF] = useState({
     name: event?.name ?? "",
     type: (event?.type ?? "convocation") as EventType,
@@ -32,9 +34,9 @@ export function EventForm({ event }: { event: EventRow | null }) {
 
   function onSave() {
     start(async () => {
-      const r = await saveEvent({ id: event?.id, ...f, starts_at: fromLagosInput(f.starts) });
+      const r = await saveEvent({ id: event?.id, ...f, starts_at: fromLagosInput(f.starts), copy_from: !event && copy && copyFrom ? copyFrom.id : undefined });
       toast(r.ok, r.ok ? (event ? "Event saved" : "Event created") : r.error);
-      if (r.ok && !event) { router.replace("/event"); router.refresh(); }
+      if (r.ok && !event) { router.replace("/setup"); router.refresh(); }
     });
   }
 
@@ -105,7 +107,13 @@ export function EventForm({ event }: { event: EventRow | null }) {
         </div>
       </section>
 
-      <div className="max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:border-t max-md:border-line max-md:bg-white/95 max-md:px-4 max-md:py-3 max-md:backdrop-blur">
+      <div className="flex flex-col gap-3 max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:border-t max-md:border-line max-md:bg-white/95 max-md:px-4 max-md:py-3 max-md:backdrop-blur">
+        {!event && copyFrom && (
+          <label className="flex min-h-10 cursor-pointer items-start gap-2.5 text-sm">
+            <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-[#111418]" checked={copy} onChange={(e) => setCopy(e.target.checked)} />
+            <span>Copy setup from last event <span className="text-muted">({copyFrom.name}): its places, collection points and buses. Food and trips are not copied.</span></span>
+          </label>
+        )}
         <button className="btn-dark max-md:w-full" onClick={onSave} disabled={pending || !f.name.trim()} aria-busy={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
           {pending ? "Saving…" : event ? "Save changes" : "Create event"}

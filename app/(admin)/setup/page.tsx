@@ -1,24 +1,38 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { getBusyBusIds, getBuses, getSites } from "@/lib/data";
-import { PageHeader } from "../ui";
+import { getActiveEvent, getBusLinks, getBusyBusIds, getBuses, getCollectionPoints, getEventSites, getEvents, getSites, ensureBusLinksForEvent } from "@/lib/data";
+import { EmptyState, PageHeader } from "../ui";
 import { BusesManager } from "./buses-manager";
-import { SitesEditor } from "./sites-editor";
+import { CollectionPointsManager } from "./collection-points-manager";
+import { CopySetup } from "./copy-setup";
+import { PlacesManager } from "./places-manager";
 
 export const dynamic = "force-dynamic";
 
-/** Places and buses are shared by every event, so they live outside the event tabs. */
+/** Everything this event needs before it starts: where food goes, where it is collected, and what carries it. */
 export default async function SetupPage() {
-  const [sites, buses, busyIds] = await Promise.all([getSites(), getBuses(), getBusyBusIds()]);
+  const event = await getActiveEvent();
+  if (!event) return <EmptyState action={<Link href="/event?new=1">Create an event</Link>}>Create an event first, then set it up here.</EmptyState>;
+
+  await ensureBusLinksForEvent(event.id); // every bus has its link for this event from the start
+  const [places, saved, points, buses, links, busyIds, events] = await Promise.all([
+    getEventSites(event.id), getSites(), getCollectionPoints(event.id), getBuses(event.id), getBusLinks(event.id), getBusyBusIds(), getEvents(),
+  ]);
+  const previous = events.find((e) => e.id !== event.id && e.starts_at < event.starts_at);
+  const empty = places.length === 0 && points.length === 0 && buses.length === 0;
+
   return (
     <>
       <PageHeader
-        title="Setup"
-        description="The places you deliver to and the buses that carry the food. Shared by every event."
-        actions={<Link href="/" className="btn-line"><ArrowLeft className="size-4" aria-hidden />All events</Link>}
+        title="Set up this event"
+        description="The places you deliver to, the collection points that report food, and the buses that carry it. Each event has its own setup."
       />
-      <SitesEditor sites={sites} />
-      <BusesManager buses={buses} busyIds={busyIds} />
+      {empty && previous && <CopySetup from={{ id: previous.id, name: previous.name }} />}
+      <PlacesManager places={places} saved={saved} />
+      <CollectionPointsManager points={points} siteUrl={process.env.SITE_URL ?? ""} />
+      <BusesManager
+        buses={buses} links={links.map((l) => ({ bus_id: l.bus_id, token: l.token }))}
+        busyIds={busyIds} siteUrl={process.env.SITE_URL ?? ""} eventName={event.name}
+      />
     </>
   );
 }
