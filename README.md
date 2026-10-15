@@ -13,18 +13,9 @@ One Next.js app, deployed on Vercel, with Supabase for the database, sign-in and
 ## Set up (about 15 minutes)
 
 1. **Install:** `npm install`
-2. **Supabase:** create a project at supabase.com, then:
-   - SQL Editor → paste and run `supabase/migrations/0001_init.sql`
-   - optional: run `supabase/seed.sql` for example sites and volunteers
-   - Authentication → Sign In / Providers → turn **off** "Allow new users to sign up"
-   - Authentication → Users → **Add user** for each coordinator (email + password)
-3. **Environment:** copy `.env.example` to `.env.local` and fill in the Supabase URL, anon key, service role key and the Claude API key.
-4. **Run:** `npm run dev` → http://localhost:3000 → sign in.
-5. **Test the logic:** `npm test` (8 tests: prediction, urgency, matching, parser, time zone, status flow).
+2. **Run:** `npm run dev` → http://localhost:3000 → sign in.
+3. **Test the logic:** `npm test` (8 tests: prediction, urgency, matching, parser, time zone, status flow).
 
-## Deploy
-
-Import the repo on vercel.com, add the same environment variables (set `NEXT_PUBLIC_SITE_URL` to the Vercel URL), deploy. Every push to `main` redeploys.
 
 ## How a night runs
 
