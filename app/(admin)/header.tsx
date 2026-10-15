@@ -7,7 +7,7 @@ import type { EventSummary } from "@/lib/data";
 import { TZ } from "@/lib/format";
 import { selectEvent, signOut } from "./actions";
 import { Clock } from "./clock";
-import { TABS } from "./nav";
+import { TABS, WaitingBadge } from "./nav";
 import { useToast } from "./toast";
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" });
@@ -46,7 +46,7 @@ function EventSwitcher({ id, events, currentId, className = "" }: { id: string; 
   );
 }
 
-export function Header({ events, currentId }: { events: EventSummary[]; currentId: string | null }) {
+export function Header({ events, currentId, badges = {} }: { events: EventSummary[]; currentId: string | null; badges?: Record<string, number> }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const current = events.find((e) => e.id === currentId);
@@ -112,6 +112,7 @@ export function Header({ events, currentId }: { events: EventSummary[]; currentI
                   <span className={`font-mono text-xs ${on ? "text-blue" : "text-[#8a929c]"}`}>0{i + 1}</span>
                   <Icon className="size-4" aria-hidden />
                   <span className="flex-1">{label}</span>
+                  {!!badges[href] && <WaitingBadge n={badges[href]} />}
                   {on && <span className="size-2 rounded-full bg-ink" aria-hidden />}
                 </Link>
               );

@@ -12,7 +12,12 @@ export const TABS = [
   ["/impact", "Impact report", FileBarChart],
 ] as const;
 
-export function Nav() {
+/** Small count next to a tab, e.g. portions of food waiting for matching. */
+export function WaitingBadge({ n }: { n: number }) {
+  return <span className="rounded-full bg-orange px-1.5 py-px font-mono text-[11px] font-semibold text-ink" aria-label={`${n} portions waiting`}>{n}</span>;
+}
+
+export function Nav({ badges = {} }: { badges?: Record<string, number> }) {
   const path = usePathname();
   const active = useRef<HTMLAnchorElement>(null);
 
@@ -36,6 +41,7 @@ export function Nav() {
             <span className={`font-mono text-xs ${on ? "text-blue" : "text-[#8a929c]"}`}>0{i + 1}</span>
             <Icon className="size-4" aria-hidden />
             {label}
+            {!!badges[href] && <WaitingBadge n={badges[href]} />}
           </Link>
         );
       })}

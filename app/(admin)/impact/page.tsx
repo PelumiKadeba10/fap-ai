@@ -12,7 +12,7 @@ const TECH_BUDGET = 50_000; // ₦, platform only
 export default async function ImpactPage() {
   const event = await getActiveEvent();
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
-  const [batches, deliveries, sites] = await Promise.all([getBatches(event.id), getDeliveries(event.id), getSites()]);
+  const [batches, deliveries, sites] = await Promise.all([getBatches(event.id, "approved"), getDeliveries(event.id), getSites()]);
 
   const recovered = batches.reduce((t, b) => t + b.qty, 0);
   const done = deliveries.filter((d) => d.status === "delivered" && d.delivered_at);

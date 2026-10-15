@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { createClient } from "./supabase/server";
 import { EVENT_COOKIE } from "./event-cookie";
-import type { Batch, Delivery, EventRow, Site, Volunteer } from "./types";
+import { foodWaiting, type FoodWaiting } from "./food-waiting";
+import type { Batch, CollectionPoint, Delivery, EventRow, ReviewStatus, Site, Volunteer } from "./types";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
 
@@ -23,11 +24,33 @@ export async function getEvents(): Promise<EventSummary[]> {
   return (data ?? []) as EventSummary[];
 }
 
-export async function getBatches(eventId: string): Promise<Batch[]> {
+/** Batches for an event, optionally only those with a given review status. */
+export async function getBatches(eventId: string, reviewStatus?: ReviewStatus): Promise<Batch[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("batches").select("*").eq("event_id", eventId).order("collected_at");
+  let q = supabase.from("batches").select("*").eq("event_id", eventId);
+  if (reviewStatus) q = q.eq("review_status", reviewStatus);
+  const { data, error } = await q.order("collected_at");
   if (error) throw error;
   return (data ?? []) as Batch[];
+}
+
+export async function getCollectionPoints(eventId: string): Promise<CollectionPoint[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("collection_points").select("*").eq("event_id", eventId).order("created_at");
+  if (error) throw error;
+  return (data ?? []) as CollectionPoint[];
+}
+
+/** Approved food not yet in a delivery, plus how many unchecked batches are waiting on Food intake. */
+export async function getFoodWaiting(eventId: string): Promise<FoodWaiting & { pending: number }> {
+  const supabase = await createClient();
+  const [b, d] = await Promise.all([
+    supabase.from("batches").select("id, qty, review_status").eq("event_id", eventId),
+    supabase.from("deliveries").select("batch_id, qty").eq("event_id", eventId),
+  ]);
+  const batches = (b.data ?? []) as { id: string; qty: number; review_status: ReviewStatus }[];
+  const deliveries = (d.data ?? []) as { batch_id: string; qty: number }[];
+  return { ...foodWaiting(batches, deliveries), pending: batches.filter((x) => x.review_status === "pending").length };
 }
 
 export async function getSites(): Promise<Site[]> {

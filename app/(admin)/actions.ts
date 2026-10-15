@@ -98,12 +98,12 @@ export async function addBatch(input: z.input<typeof BatchInput>): Promise<Resul
   const { error } = await supabase.from("batches").insert({
     ...b,
     event_id: event.id,
+    review_status: "approved",
     location: b.location || event.venue_name,
     collected_at: (collected ?? new Date()).toISOString(),
   });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/intake");
-  revalidatePath("/match");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -113,8 +113,80 @@ export async function removeBatch(id: string): Promise<Result> {
   if (count) return { ok: false, error: "This batch is already out for delivery and can’t be removed." };
   const { error } = await supabase.from("batches").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+const BatchEdit = z.object({
+  food: z.string().trim().min(1).max(80),
+  qty: z.coerce.number().int().positive(),
+  category: z.enum(["cooked_meal", "bread_pastry", "fruit_veg", "packaged", "drinks"]),
+  // "HH:MM" Lagos time, or null to leave the collected time as it was.
+  collected_time: z.string().regex(/^d{1,2}:d{2}$/).nullable(),
+  location: z.string().trim().max(60),
+  condition: z.string().trim().max(40),
+  notes: z.string().trim().max(120),
+});
+
+/** Coordinator checks food reported through a collection link and lets it into matching. */
+export async function confirmBatch(id: string, input: z.input<typeof BatchEdit>): Promise<Result> {
+  const idOk = z.string().uuid().safeParse(id).success;
+  const parsed = BatchEdit.safeParse(input);
+  if (!idOk || !parsed.success) return { ok: false, error: "Food name and a quantity above zero are required." };
+  const supabase = await db();
+  const { collected_time, ...b } = parsed.data;
+  const patch: Record<string, unknown> = { ...b, review_status: "approved" };
+  if (collected_time) {
+    const t = lagosTimeToday(collected_time);
+    if (t) patch.collected_at = t.toISOString();
+  }
+  const { data, error } = await supabase.from("batches").update(patch).eq("id", id).eq("review_status", "pending").select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) return { ok: false, error: "This batch was already checked or removed." };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Throws away an unchecked submission. Approved batches are removed with removeBatch instead. */
+export async function discardBatch(id: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown batch." };
+  const supabase = await db();
+  const { error } = await supabase.from("batches").delete().eq("id", id).eq("review_status", "pending");
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ---------- Collection points ---------- */
+
+const PointInput = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(60),
+  lead_name: z.string().trim().max(60).nullable().optional(),
+  lead_phone: z.string().trim().max(30).nullable().optional(),
+});
+
+export async function saveCollectionPoint(input: z.input<typeof PointInput>): Promise<Result> {
+  const parsed = PointInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "A collection point needs a name." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
+  const supabase = await db();
+  const { id, ...row } = parsed.data;
+  const { error } = id
+    ? await supabase.from("collection_points").update(row).eq("id", id)
+    : await supabase.from("collection_points").insert({ ...row, event_id: event.id });
+  if (error) return { ok: false, error: error.message };
   revalidatePath("/intake");
-  revalidatePath("/match");
+  return { ok: true };
+}
+
+export async function setCollectionPointActive(id: string, active: boolean): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown collection point." };
+  const supabase = await db();
+  const { error } = await supabase.from("collection_points").update({ active }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/intake");
   return { ok: true };
 }
 
@@ -157,7 +229,7 @@ export async function removeSite(id: string): Promise<Result> {
 export async function approvePlan(): Promise<Result & { created?: number }> {
   const event = await getActiveEvent();
   if (!event) return { ok: false, error: "No active event." };
-  const [batches, sites, deliveries] = await Promise.all([getBatches(event.id), getSites(), getDeliveries(event.id)]);
+  const [batches, sites, deliveries] = await Promise.all([getBatches(event.id, "approved"), getSites(), getDeliveries(event.id)]);
   const sentByBatch = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
   const sentBySite = sumBy(deliveries, (d) => d.site_id, (d) => d.qty);
   const now = new Date();
@@ -183,8 +255,7 @@ export async function approvePlan(): Promise<Result & { created?: number }> {
   const supabase = await db();
   const { error } = await supabase.from("deliveries").insert(rows);
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/match");
-  revalidatePath("/live");
+  revalidatePath("/", "layout");
   return { ok: true, created: rows.length };
 }
 

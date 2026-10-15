@@ -4,6 +4,7 @@ export type Category = "cooked_meal" | "bread_pastry" | "fruit_veg" | "packaged"
 export type EventType = "convocation" | "matriculation" | "conference" | "wedding" | "religious";
 export type SiteKind = "School" | "Community" | "Care home" | "Shelter" | "Other";
 export type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
+export type ReviewStatus = "pending" | "approved";
 export type DeliveryStatus = "assigned" | "picked_up" | "on_the_way" | "delayed" | "delivered";
 
 export interface EventRow {
@@ -54,6 +55,19 @@ export interface Batch {
   notes: string | null;
   raw_message: string | null;
   parsed_by: "claude" | "local" | "manual" | null;
+  review_status: ReviewStatus;
+  collection_point_id: string | null;
+  created_at: string;
+}
+
+export interface CollectionPoint {
+  id: string;
+  event_id: string;
+  name: string;
+  lead_name: string | null;
+  lead_phone: string | null;
+  token: string;
+  active: boolean;
   created_at: string;
 }
 

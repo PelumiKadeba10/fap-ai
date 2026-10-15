@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";import { NextResponse, type NextRequest } from "next/server";
 
-// Paths anyone can open: the login page and volunteer links (/v/<token>).
-const PUBLIC = [/^\/login/, /^\/v\//];
+// Paths anyone can open: the login page, volunteer links (/v/<token>) and collection links (/c/<token>).
+const PUBLIC = [/^\/login/, /^\/v\//, /^\/c\//];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

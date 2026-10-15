@@ -1,18 +1,24 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Play, RotateCw, Route } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, Loader2, Play, RotateCw, Route, Soup } from "lucide-react";
 import type { Batch, Site } from "@/lib/types";
 import { runMatching } from "@/lib/match";
 import { urgency } from "@/lib/urgency";
 import { fmtDur, fmtTime, n0 } from "@/lib/format";
+import { foodWaiting } from "@/lib/food-waiting";
 import { approvePlan } from "../actions";
 import { EmptyState, SectionHead, UrgencyPill, cardTable } from "../ui";
 import { useToast } from "../toast";
 import { SiteMap } from "./site-map";
 
-export function PlanPanel({ batches, sites, sentByBatch, sentBySite }: {
+export function PlanPanel({ batches, sites, sentByBatch, sentBySite, pendingCount, children }: {
   batches: Batch[]; sites: Site[]; sentByBatch: Record<string, number>; sentBySite: Record<string, number>;
+  /** Batches from collection links that still need checking on Food intake. */
+  pendingCount: number;
+  /** Rendered between the food-waiting banner and the allocation (the sites table). */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -31,6 +37,7 @@ export function PlanPanel({ batches, sites, sentByBatch, sentBySite }: {
 
   const batchById = new Map(batches.map((b) => [b.id, b]));
   const siteById = new Map(sites.map((s) => [s.id, s]));
+  const waiting = foodWaiting(batches, Object.entries(sentByBatch).map(([batch_id, qty]) => ({ batch_id, qty })));
   const available = batches.reduce((t, b) => t + Math.max(0, b.qty - (sentByBatch[b.id] ?? 0)), 0);
 
   // Most urgent food first; ties broken by least spare time.
@@ -54,8 +61,29 @@ export function PlanPanel({ batches, sites, sentByBatch, sentBySite }: {
   }
 
   const count = plan?.allocations.length ?? 0;
+  const run = () => { setNow(new Date()); setConfirming(false); };
 
   return (
+    <>
+      {(waiting.portions > 0 || pendingCount > 0) && (
+        <div className="flex flex-col gap-2 border-l-4 border-orange bg-[#fffaf0] px-4 py-3.5" role="status">
+          {waiting.portions > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+              <p className="flex items-start gap-2 text-[15px] font-medium">
+                <Soup className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>New food waiting: <span className="font-mono">{n0(waiting.portions)}</span> portions in {waiting.batches} {waiting.batches === 1 ? "batch" : "batches"}. Run matching to plan deliveries.</span>
+              </p>
+              <button className="btn-dark" onClick={run} disabled={pending}><Play className="size-4" aria-hidden />{plan ? "Re-run matching" : "Run matching"}</button>
+            </div>
+          )}
+          {pendingCount > 0 && (
+            <p className="text-sm text-[#6b4a08]">
+              <span className="font-mono">{pendingCount}</span> {pendingCount === 1 ? "batch still needs" : "batches still need"} checking on <Link href="/intake" className="font-medium underline underline-offset-4">Food intake</Link>
+            </p>
+          )}
+        </div>
+      )}
+      {children}
     <section className="flex flex-col gap-5">
       <SectionHead title="Recommended allocation" aside={<><span className="font-mono">{n0(available)}</span> portions not yet sent out</>} />
       <div className="grid gap-x-10 gap-y-7 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -68,7 +96,7 @@ export function PlanPanel({ batches, sites, sentByBatch, sentBySite }: {
           <p className="text-sm text-muted">Matching uses tonight’s food and each site’s remaining need. Coordinators approve every plan before volunteers are told.</p>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button className={plan ? "btn-line" : "btn-dark"} onClick={() => { setNow(new Date()); setConfirming(false); }} disabled={!available || pending}>
+            <button className={plan ? "btn-line" : "btn-dark"} onClick={run} disabled={!available || pending}>
               {plan ? <RotateCw className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
               {plan ? "Re-run matching" : "Run matching"}
             </button>
@@ -140,5 +168,6 @@ export function PlanPanel({ batches, sites, sentByBatch, sentBySite }: {
         <p className="text-sm text-muted">{n0(plan.leftovers.reduce((t, l) => t + l.qty, 0))} portions are more than tonight’s known need. Add another site or hold them for a next-morning run.</p>
       )}
     </section>
+    </>
   );
 }
