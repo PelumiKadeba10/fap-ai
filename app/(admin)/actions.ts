@@ -6,13 +6,15 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PHOTO_BUCKET } from "@/lib/photo";
-import { getActiveEvent, getBatches, getBusyBusIds, getBuses, getDeliveries, getEventSites, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getBusyBusIds, getBuses, getDeliveries, getEventSites, getTrips, sumBy } from "@/lib/data";
 import { lagosTimeToday } from "@/lib/format";
 import { runMatching } from "@/lib/match";
 import { urgency } from "@/lib/urgency";
 import { EVENT_COOKIE } from "@/lib/event-cookie";
 import { applyStatus, applyStopStatus, departTrip, returnTrip } from "@/lib/apply-status";
-import { defaultCapacity, planTrips, NO_HUB } from "@/lib/trips";
+import { defaultCapacity, limitToFreeBuses, planTrips, NO_HUB } from "@/lib/trips";
+import { nextTripNos } from "@/lib/bus-state";
+import { parsePledgeList } from "@/lib/pledges";
 import { canTripMove } from "@/lib/trip-status";
 import type { DeliveryStatus, TripStatus } from "@/lib/types";
 
@@ -43,6 +45,8 @@ const EventInput = z.object({
   vendors: z.coerce.number().int().min(1).max(40),
   starts_at: z.string().datetime(),
   duration_hours: z.coerce.number().positive().max(24),
+  food_from: z.string().datetime().nullable(),
+  bus_ready_by: z.string().datetime().nullable(),
   // When creating: copy places, collection points and buses from this earlier event.
   copy_from: z.string().uuid().optional(),
 });
@@ -195,6 +199,7 @@ const PointInput = z.object({
   location_note: z.string().trim().max(120).nullable().optional(),
   lead_name: z.string().trim().max(60).nullable().optional(),
   lead_phone: z.string().trim().max(30).nullable().optional(),
+  volunteers: z.coerce.number().int().min(0).max(10000).nullable().optional(),
 });
 
 export async function saveCollectionPoint(input: z.input<typeof PointInput>): Promise<Result> {
@@ -320,7 +325,7 @@ async function copySetupInto(supabase: Awaited<ReturnType<typeof db>>, fromId: s
   }
   if (await isEmpty("collection_points")) {
     // New rows get new ids and new link tokens.
-    const { data } = await supabase.from("collection_points").select("name, location_note, lead_name, lead_phone, active").eq("event_id", fromId);
+    const { data } = await supabase.from("collection_points").select("name, location_note, lead_name, lead_phone, volunteers, active").eq("event_id", fromId);
     if (data?.length) {
       const { error } = await supabase.from("collection_points").insert(data.map((r) => ({ ...r, event_id: toId })));
       if (error) return { ok: false, error: error.message };
@@ -418,7 +423,12 @@ export async function approveTrips(busIds: (string | null)[]): Promise<Result & 
   if (!allocations.length) return { ok: false, error: "Nothing to send: no food left to allocate, or every site’s need is met." };
 
   const batchHub = Object.fromEntries(batches.map((b) => [b.id, b.collection_point_id]));
-  const trips = planTrips(allocations, batchHub, sites.map((x) => ({ id: x.id, km: Number(x.km), direction: x.direction })), defaultCapacity(buses));
+  // Only free buses get a new trip: a bus that is out (or returning) finishes its trip first, and the food waits.
+  const active = buses.filter((b) => b.active);
+  const free = active.filter((b) => !busy.includes(b.id));
+  if (active.length && !free.length) return { ok: false, error: "No bus is free right now. The food waiting will go on the next trip." };
+  const planned = planTrips(allocations, batchHub, sites.map((x) => ({ id: x.id, km: Number(x.km), direction: x.direction })), defaultCapacity(free.length ? free : buses));
+  const trips = active.length ? limitToFreeBuses(planned, free.length) : planned;
 
   // A bus can take one trip at a time, and only if it is free.
   const chosen = busIds.slice(0, trips.length).filter((id): id is string => !!id);
@@ -432,9 +442,11 @@ export async function approveTrips(busIds: (string | null)[]): Promise<Result & 
   const supabase = await db();
   const linkError = await ensureBusLinks(supabase, event.id, chosen);
   if (linkError) return { ok: false, error: linkError };
+  // Each bus's 1st, 2nd, 3rd... trip of the event, numbered in approval order.
+  const tripNos = nextTripNos(await getTrips(event.id), trips.map((_, i) => busIds[i] ?? null));
   const { data: created, error } = await supabase
     .from("trips")
-    .insert(trips.map((t, i) => ({ event_id: event.id, hub_id: t.hubId === NO_HUB ? null : t.hubId, bus_id: busIds[i] ?? null })))
+    .insert(trips.map((t, i) => ({ event_id: event.id, hub_id: t.hubId === NO_HUB ? null : t.hubId, bus_id: busIds[i] ?? null, trip_no: tripNos[i] })))
     .select("id");
   if (error || !created || created.length !== trips.length) return { ok: false, error: error?.message ?? "Couldn’t create the trips." };
 
@@ -475,7 +487,12 @@ export async function setTripBus(tripId: string, busId: string | null): Promise<
     if (busy.includes(busId) && current?.bus_id !== busId) return { ok: false, error: `${bus.name} is already on a trip.` };
   }
   const supabase = await db();
-  const { data, error } = await supabase.from("trips").update({ bus_id: busId }).eq("id", tripId).in("status", ["planned", "loading"]).select("id, event_id");
+  const { data: before } = await supabase.from("trips").select("bus_id, event_id").eq("id", tripId).maybeSingle();
+  if (!before) return { ok: false, error: "That trip no longer exists." };
+  // A new bus means that bus's next trip number; no bus means no number.
+  const tripNo = busId && before.bus_id !== busId ? nextTripNos(await getTrips(before.event_id), [busId])[0] : undefined;
+  const patch = busId ? (tripNo === undefined ? { bus_id: busId } : { bus_id: busId, trip_no: tripNo }) : { bus_id: null, trip_no: null };
+  const { data, error } = await supabase.from("trips").update(patch).eq("id", tripId).in("status", ["planned", "loading"]).select("id, event_id");
   if (error) return { ok: false, error: error.message };
   if (!data?.length) return { ok: false, error: "The bus can only be changed before the trip leaves." };
   if (busId) {
@@ -599,4 +616,71 @@ export async function addVolunteer(input: z.input<typeof VolunteerInput>): Promi
   if (error) return { ok: false, error: error.message };
   revalidatePath("/live");
   return { ok: true };
+}
+
+/** Setup: packs in one carton for this event. Empty = show packs only. */
+export async function setPacksPerCarton(value: number | null): Promise<Result> {
+  const parsed = z.coerce.number().int().min(1).max(1000).nullable().safeParse(value);
+  if (!parsed.success) return { ok: false, error: "Packs per carton must be a whole number above zero, or empty." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
+  const supabase = await db();
+  const { error } = await supabase.from("events").update({ packs_per_carton: parsed.data }).eq("id", event.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ---------- Pledged tents ---------- */
+
+const PledgeInput = z.object({
+  id: z.string().uuid().optional(),
+  tent_name: z.string().trim().min(1).max(60),
+  contact_name: z.string().trim().max(60).nullable().optional(),
+  contact_phone: z.string().trim().max(30).nullable().optional(),
+  pledged_packs: z.coerce.number().int().min(0).max(100000).nullable().optional(),
+  pickup_from: z.string().datetime().nullable().optional(),
+  collection_point_id: z.string().uuid().nullable().optional(),
+  notes: z.string().trim().max(200).nullable().optional(),
+});
+
+export async function savePledge(input: z.input<typeof PledgeInput>): Promise<Result> {
+  const parsed = PledgeInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "A pledged tent needs a name." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
+  const supabase = await db();
+  const { id, ...row } = parsed.data;
+  const { error } = id
+    ? await supabase.from("pledges").update(row).eq("id", id).eq("event_id", event.id)
+    : await supabase.from("pledges").insert({ ...row, event_id: event.id });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function removePledge(id: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown pledge." };
+  const supabase = await db();
+  const { error } = await supabase.from("pledges").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Adds many tents at once from pasted lines ("Tent name, phone, packs"), all for one collection point and pick-up time. */
+export async function importPledges(text: string, collectionPointId: string | null, pickupFrom: string | null): Promise<Result & { added?: number }> {
+  const pointOk = collectionPointId === null || z.string().uuid().safeParse(collectionPointId).success;
+  const timeOk = pickupFrom === null || z.string().datetime().safeParse(pickupFrom).success;
+  if (!pointOk || !timeOk) return { ok: false, error: "Choose a collection point and a valid pick-up time." };
+  const list = parsePledgeList(String(text).slice(0, 20000));
+  if (!list.length) return { ok: false, error: "Paste one tent per line: name, phone, packs." };
+  if (list.length > 200) return { ok: false, error: "That is more than 200 lines. Paste fewer at a time." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "Create the event on the Event tab first." };
+  const supabase = await db();
+  const { error } = await supabase.from("pledges").insert(list.map((p) => ({ ...p, event_id: event.id, collection_point_id: collectionPointId, pickup_from: pickupFrom })));
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, added: list.length };
 }

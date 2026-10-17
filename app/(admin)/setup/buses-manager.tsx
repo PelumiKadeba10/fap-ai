@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Bus as BusIcon, Check, Copy, MessageCircle, Plus } from "lucide-react";
 import type { Bus } from "@/lib/types";
+import { packsFromCartons } from "@/lib/cartons";
 import { Spinner } from "@/components/spinner";
 import { saveBus, setBusActive } from "../actions";
 import { EmptyState, Pill, cardTable } from "../ui";
@@ -14,13 +15,16 @@ type Draft = { name: string; capacity: number; lead_name: string; lead_phone: st
 const toDraft = (b: Bus): Draft => ({ name: b.name, capacity: b.capacity, lead_name: b.lead_name ?? "", lead_phone: b.lead_phone ?? "" });
 
 /** This event's buses. Each bus has one link for the whole event, shown here to copy or send. */
-export function BusesManager({ buses, links, busyIds, siteUrl, eventName }: {
-  buses: Bus[]; links: { bus_id: string; token: string }[]; busyIds: string[]; siteUrl: string; eventName: string;
+export function BusesManager({ buses, links, busyIds, siteUrl, eventName, packsPerCarton }: {
+  buses: Bus[]; links: { bus_id: string; token: string }[]; busyIds: string[]; siteUrl: string; eventName: string; packsPerCarton: number | null;
 }) {
   const toast = useToast();
   const { pending, busy: isBusy, run } = useAction();
   const [adding, setAdding] = useState(false);
   const [copied, setCopied] = useState("");
+  // Capacity can be typed in packs or cartons; it is always stored in packs.
+  const [unit, setUnit] = useState<"packs" | "cartons">("packs");
+  const perCarton = unit === "cartons" ? packsPerCarton : null;
   const [origin, setOrigin] = useState(siteUrl);
   useEffect(() => { if (!siteUrl) setOrigin(window.location.origin); }, [siteUrl]);
 
@@ -40,14 +44,22 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName }: {
         <h2 id="buses-title" className="h2">Buses for this event</h2>
         <span className="text-[13px] text-muted">One link per bus lead for the whole event, no login needed.</span>
       </div>
+      {packsPerCarton ? (
+        <div className="flex flex-wrap items-center gap-3 text-sm" role="group" aria-label="Capacity unit">
+          <span className="text-muted">Enter capacity in</span>
+          {(["packs", "cartons"] as const).map((u) => (
+            <button key={u} type="button" aria-pressed={unit === u} className={`rounded-full border px-3 py-1 text-[13px] font-medium max-md:min-h-11 ${unit === u ? "border-ink bg-ink text-white" : "border-line text-muted"}`} onClick={() => setUnit(u)}>{u === "packs" ? "Packs" : `Cartons (${packsPerCarton} packs each)`}</button>
+          ))}
+        </div>
+      ) : null}
       {buses.length > 0 || adding ? (
         <table className={cardTable}>
-          <thead><tr><th className="th">Bus</th><th className="th">Capacity (packs)</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Bus link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th className="th">Bus</th><th className="th">Capacity ({unit})</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Bus link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {buses.map((b) => {
               const url = linkOf(b);
               return (
-                <BusRow key={b.id} bus={b} pending={pending} onTrip={busyIds.includes(b.id)} saving={isBusy("save:" + b.id)} toggling={isBusy("toggle:" + b.id)}
+                <BusRow key={b.id} bus={b} perCarton={perCarton} pending={pending} onTrip={busyIds.includes(b.id)} saving={isBusy("save:" + b.id)} toggling={isBusy("toggle:" + b.id)}
                   onSave={(d) => run("save:" + b.id, () => saveBus({ id: b.id, ...d }))}
                   onToggle={() => run("toggle:" + b.id, () => setBusActive(b.id, !b.active))}
                   links={b.active && url ? (
@@ -61,7 +73,7 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName }: {
                   ) : b.active ? <span className="text-[13px] text-muted">Link is being prepared…</span> : <Pill tone="muted">Switched off</Pill>} />
               );
             })}
-            {adding && <BusRow bus={null} pending={pending} onTrip={false} saving={isBusy("save:new")} toggling={false} links={null} onToggle={() => setAdding(false)} onSave={(d) => run("save:new", () => saveBus(d), () => setAdding(false))} />}
+            {adding && <BusRow bus={null} perCarton={perCarton} pending={pending} onTrip={false} saving={isBusy("save:new")} toggling={false} links={null} onToggle={() => setAdding(false)} onSave={(d) => run("save:new", () => saveBus(d), () => setAdding(false))} />}
           </tbody>
         </table>
       ) : (
@@ -76,18 +88,20 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName }: {
   );
 }
 
-function BusRow({ bus, pending, onTrip, saving, toggling, links, onSave, onToggle }: {
-  bus: Bus | null; pending: boolean; onTrip: boolean; saving: boolean; toggling: boolean; links: React.ReactNode; onSave: (d: Draft) => void; onToggle: () => void;
+function BusRow({ bus, perCarton, pending, onTrip, saving, toggling, links, onSave, onToggle }: {
+  bus: Bus | null; perCarton: number | null; pending: boolean; onTrip: boolean; saving: boolean; toggling: boolean; links: React.ReactNode; onSave: (d: Draft) => void; onToggle: () => void;
 }) {
   const isNew = !bus;
   const [d, setD] = useState<Draft>(bus ? toDraft(bus) : { name: "", capacity: 400, lead_name: "", lead_phone: "" });
   const commit = () => { if (bus && d.name.trim() && d.capacity > 0 && JSON.stringify(toDraft(bus)) !== JSON.stringify(d)) onSave(d); };
   const nm = d.name || "new bus";
+  // The draft holds packs; cartons are only how it is typed and shown.
+  const shown = perCarton ? Math.round((d.capacity / perCarton) * 10) / 10 : d.capacity;
 
   return (
     <tr className={isNew ? "bg-soft" : bus.active ? "" : "opacity-60"}>
       <td className="cell" data-label="Bus"><input aria-label="Bus name" className="input-quiet min-w-28 font-medium" value={d.name} placeholder="Bus 1" autoFocus={isNew} onChange={(e) => setD({ ...d, name: e.target.value })} onBlur={commit} /></td>
-      <td className="cell" data-label="Capacity (packs)"><input aria-label={"Capacity of " + nm} className="input-quiet w-24 font-mono max-md:w-full" type="number" min={1} step={50} value={d.capacity || ""} onChange={(e) => setD({ ...d, capacity: Number(e.target.value) })} onBlur={commit} /></td>
+      <td className="cell" data-label={perCarton ? "Capacity (cartons)" : "Capacity (packs)"}><input aria-label={"Capacity of " + nm + (perCarton ? " in cartons" : " in packs")} className="input-quiet w-24 font-mono max-md:w-full" type="number" min={perCarton ? 0.1 : 1} step={perCarton ? 1 : 50} value={shown || ""} onChange={(e) => setD({ ...d, capacity: perCarton ? packsFromCartons(Number(e.target.value), perCarton) : Number(e.target.value) })} onBlur={commit} />{perCarton ? <span className="mt-0.5 block text-xs text-muted">≈ {d.capacity} packs</span> : null}</td>
       <td className="cell" data-label="Lead"><input aria-label={"Lead name for " + nm} className="input-quiet min-w-28" value={d.lead_name} placeholder="Name" onChange={(e) => setD({ ...d, lead_name: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Lead phone"><input aria-label={"Lead phone for " + nm} className="input-quiet min-w-32 font-mono" type="tel" value={d.lead_phone} placeholder="0803…" onChange={(e) => setD({ ...d, lead_phone: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Bus link">{links ?? <span className="text-[13px] text-muted">Created when saved</span>}</td>

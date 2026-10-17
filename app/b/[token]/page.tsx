@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { AlertTriangle, CheckCircle2, MapPin, Phone, RefreshCw, Timer } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findBusLink, findCurrentTrip } from "@/lib/bus-trip";
+import { findBusLink, findCurrentTrip, findEarlierTrips, type EarlierTrip } from "@/lib/bus-trip";
+import { tripPhase } from "@/lib/bus-state";
+import { fmtPacks } from "@/lib/cartons";
 import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
+import { ChevronRight } from "lucide-react";
 import { ATTENTION_MIN } from "@/lib/status";
 import { TRIP_STATUS, groupStops, stopStatus } from "@/lib/trip-status";
 import type { DeliveryStatus } from "@/lib/types";
@@ -35,10 +38,12 @@ export default async function BusPage({ params, searchParams }: { params: Promis
     );
   }
 
-  const [{ data: who }, trip] = await Promise.all([
-    db.from("bus_links").select("buses(name), events(name)").eq("id", link.id).maybeSingle<{ buses: { name: string } | null; events: { name: string } | null }>(),
+  const [{ data: who }, trip, earlier] = await Promise.all([
+    db.from("bus_links").select("buses(name), events(name, packs_per_carton, bus_ready_by)").eq("id", link.id).maybeSingle<{ buses: { name: string } | null; events: { name: string; packs_per_carton: number | null; bus_ready_by: string | null } | null }>(),
     findCurrentTrip(db, link),
+    findEarlierTrips(db, link),
   ]);
+  const perCarton = who?.events?.packs_per_carton ?? null;
   const busName = who?.buses?.name ?? "Your bus";
   const alert = e && (
     <p role="alert" className="flex items-start gap-2 rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit">
@@ -47,17 +52,13 @@ export default async function BusPage({ params, searchParams }: { params: Promis
   );
 
   if (!trip) {
-    // Completed trips tonight, so the lead can see their night so far.
-    const { data: finished } = await db.from("trips").select("id").eq("event_id", link.event_id).eq("bus_id", link.bus_id).eq("status", "returned");
-    const ids = (finished ?? []).map((t) => t.id as string);
-    const { data: delivered } = ids.length ? await db.from("deliveries").select("qty").in("trip_id", ids).eq("status", "delivered") : { data: [] as { qty: number }[] };
-    const packs = (delivered ?? []).reduce((n, d) => n + d.qty, 0);
+    const packs = earlier.reduce((n, t) => n + t.packs, 0);
     return (
       <Shell>
         <AutoRefresh />
         <div>
           <p className="text-base text-[#4a525c]">{busName}{who?.events?.name ? " · " + who.events.name : ""}</p>
-          <h1 className="mt-1 text-[28px] leading-tight font-semibold">No trip right now.</h1>
+          <h1 className="mt-1 text-[28px] leading-tight font-semibold">Free · no trip right now.</h1>
           <p className="mt-2 text-lg">Keep this page open: your next trip will appear here.</p>
         </div>
         {alert}
@@ -68,9 +69,11 @@ export default async function BusPage({ params, searchParams }: { params: Promis
         <section aria-labelledby="done" className="border-t border-line pt-4">
           <h2 id="done" className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">Done tonight</h2>
           <p className="mt-1 text-lg">
-            <span className="font-mono font-semibold">{ids.length}</span> {ids.length === 1 ? "trip" : "trips"} · <span className="font-mono font-semibold">{packs}</span> packs delivered
+            <span className="font-mono font-semibold">{earlier.length}</span> {earlier.length === 1 ? "trip" : "trips"} · <span className="font-mono font-semibold">{packs}</span> packs delivered
           </p>
         </section>
+        <EarlierTrips trips={earlier} perCarton={perCarton} />
+        {who?.events?.bus_ready_by && <p className="text-sm text-[#4a525c]">Bus at the collection point by <b className="font-mono">{fmtTime(who.events.bus_ready_by)}</b>.</p>}
       </Shell>
     );
   }
@@ -91,13 +94,16 @@ export default async function BusPage({ params, searchParams }: { params: Promis
   const doneCount = stops.filter((s) => s.status === "delivered").length;
   const next = stops.find((s) => s.status !== "delivered");
   const onRoad = trip.status === "departed";
+  const phase = tripPhase(trip.status, stops.flatMap((s) => s.items.map((i) => i.status)));
+  const statusLabel = phase === "returning" ? "Returning" : TRIP_STATUS[trip.status].label;
   const hub = trip.collection_points?.name ?? "the collection point";
 
   return (
     <Shell>
       <div>
-        <p className="text-base text-[#4a525c]">{busName} · {TRIP_STATUS[trip.status].label}</p>
-        <h1 className="mt-1 text-[28px] leading-tight font-semibold"><span className="font-mono">{total}</span> packs from {hub}</h1>
+        <p className="text-base text-[#4a525c]">{busName} · {statusLabel}</p>
+        {trip.trip_no && <p className="mt-1 text-lg font-semibold">Trip <span className="font-mono">{trip.trip_no}</span> of today</p>}
+        <h1 className="mt-1 text-[28px] leading-tight font-semibold break-words"><span className="font-mono">{fmtPacks(total, perCarton)}</span> from {hub}</h1>
         <p className="mt-2 text-base text-[#4a525c]">{stops.length} {stops.length === 1 ? "stop" : "stops"}{trip.departed_at && <> · left at <span className="font-mono">{fmtTime(trip.departed_at)}</span></>}</p>
       </div>
 
@@ -139,7 +145,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
               </div>
 
               <ul className="mt-2 text-lg">
-                {s.items.map((i) => <li key={i.id}><span className="font-mono font-semibold">{i.qty}</span> {i.batches?.food}</li>)}
+                {s.items.map((i) => <li key={i.id}><span className="font-mono font-semibold">{fmtPacks(i.qty, perCarton)}</span> {i.batches?.food}</li>)}
               </ul>
 
               {!done && (
@@ -184,6 +190,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
         })}
       </ol>
 
+      {phase === "returning" && <p className="text-lg font-semibold" aria-live="polite">All stops done. Drive back to {hub}.</p>}
       {onRoad && !next && stops.length > 0 && (
         <form action={busAction}>
           <input type="hidden" name="token" value={token} />
@@ -193,6 +200,8 @@ export default async function BusPage({ params, searchParams }: { params: Promis
         </form>
       )}
       {onRoad && next && <p className="text-sm text-[#4a525c]">“Back at collection point” appears once every stop is delivered.</p>}
+
+      <EarlierTrips trips={earlier} perCarton={perCarton} />
 
       <p className="text-sm text-[#4a525c]">Keep this link for the whole night. Your next trip will appear on this page.</p>
     </Shell>
@@ -209,5 +218,28 @@ function Shell({ children }: { children: React.ReactNode }) {
       </div>
       {children}
     </main>
+  );
+}
+
+/** Earlier trips of tonight, collapsed so the current trip stays the only thing on screen. */
+function EarlierTrips({ trips, perCarton }: { trips: EarlierTrip[]; perCarton: number | null }) {
+  if (!trips.length) return null;
+  return (
+    <details className="group border-t border-line pt-4">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-base font-semibold [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-5 transition-transform group-open:rotate-90" aria-hidden />
+        Earlier trips <span className="font-mono text-[#4a525c]">({trips.length})</span>
+      </summary>
+      <ul className="mt-2">
+        {trips.map((t) => (
+          <li key={t.id} className="border-b border-line py-3">
+            <p className="font-semibold break-words">{t.trip_no ? `Trip ${t.trip_no}` : "Trip"} · {t.hub}</p>
+            <p className="text-sm text-[#4a525c]">
+              <span className="font-mono">{t.stops}</span> {t.stops === 1 ? "stop" : "stops"} · <span className="font-mono">{fmtPacks(t.packs, perCarton)}</span> delivered{t.returned_at && <> · back at <span className="font-mono">{fmtTime(t.returned_at)}</span></>}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

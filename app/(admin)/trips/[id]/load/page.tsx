@@ -20,7 +20,7 @@ export default async function TripLoadPage({ params }: { params: Promise<{ id: s
       <div className="no-print">
         <PageHeader
           eyebrow="Loading list"
-          title={`${trip.bus ?? "Trip"} · ${trip.hub}`}
+          title={`${trip.bus ?? "Trip"}${trip.tripNo ? ` · Trip ${trip.tripNo}` : ""} · ${trip.hub}`}
           description="For the sorting team: load each stop’s food in this order and tick it off."
           actions={<><Link href="/live" className="btn-line"><ArrowLeft className="size-4" aria-hidden />Live</Link><PrintButton /></>}
         />

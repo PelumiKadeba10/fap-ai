@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bus as BusIcon, ClipboardList, Soup } from "lucide-react";
+import { Bus as BusIcon, ChevronRight, ClipboardList, Soup } from "lucide-react";
 import type { Batch, Bus, BusLink, CollectionPoint, Delivery, DeliveryStatus, Site, Trip } from "@/lib/types";
 import { ATTENTION_MIN, STATUS } from "@/lib/status";
 import { ACTIVE_TRIP, freeBuses, groupStops, stopAlerts } from "@/lib/trip-status";
@@ -17,10 +17,10 @@ import { BusCard } from "./bus-card";
 
 type Update = { id: number; delivery_id: string; status: string; note: string | null; created_at: string };
 
-const RANK: Record<string, number> = { departed: 0, loading: 1, planned: 2, free: 3, returned: 4 };
+const RANK: Record<string, number> = { departed: 0, loading: 1, planned: 2 };
 
 export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, batches, sites, updates, siteUrl }: {
-  eventId: string; trips: Trip[]; buses: Bus[]; busLinks: Pick<BusLink, "bus_id" | "token">[]; hubs: Pick<CollectionPoint, "id" | "name">[]; deliveries: Delivery[];
+  eventId: string; trips: Trip[]; buses: Bus[]; busLinks: Pick<BusLink, "bus_id" | "token">[]; hubs: Pick<CollectionPoint, "id" | "name" | "volunteers" | "lead_name">[]; deliveries: Delivery[];
   batches: Batch[]; sites: Site[]; updates: Update[]; siteUrl: string;
 }) {
   const router = useRouter();
@@ -48,6 +48,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const busById = new Map(buses.map((b) => [b.id, b]));
   const hubById = new Map(hubs.map((h) => [h.id, h.name]));
+  const hubVolunteers = (id: string) => { const v = hubs.find((h) => h.id === id)?.volunteers; return v == null ? "" : `${v} ${v === 1 ? "volunteer" : "volunteers"} · `; };
   const hubName = (id: string | null) => (id ? hubById.get(id) ?? "Collection point" : "No collection point");
 
   const tripDeliveries = (t: Trip) => deliveries.filter((d) => d.trip_id === t.id);
@@ -59,16 +60,11 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
   const done = deliveries.filter((d) => d.trip_id && d.status === "delivered").reduce((t, d) => t + d.qty, 0);
   const attention = live.filter((t) => ACTIVE_TRIP.includes(t.status)).reduce((n, t) => n + stopAlerts(stopsOf(t), now, ATTENTION_MIN).length, 0);
 
-  // One card per active bus (its current trip), plus trips that have no bus yet.
+  // One group per trip: every trip that is still running first, then free buses, then finished trips.
   const activeBuses = buses.filter((b) => b.active);
-  const currentOf = (b: Bus) => {
-    const mine = live.filter((t) => t.bus_id === b.id);
-    return mine.find((t) => ACTIVE_TRIP.includes(t.status)) ?? [...mine].reverse()[0] ?? null;
-  };
-  const shown = new Set<string>();
-  const cards: { key: string; bus: Bus | null; trip: Trip | null }[] = activeBuses.map((b) => { const t = currentOf(b); if (t) shown.add(t.id); return { key: b.id, bus: b, trip: t }; });
-  for (const t of live) if (ACTIVE_TRIP.includes(t.status) && !shown.has(t.id)) cards.push({ key: t.id, bus: t.bus_id ? busById.get(t.bus_id) ?? null : null, trip: t });
-  cards.sort((a, b) => RANK[a.trip?.status ?? "free"] - RANK[b.trip?.status ?? "free"]);
+  const running = live.filter((t) => ACTIVE_TRIP.includes(t.status)).sort((a, b) => (RANK[a.status] - RANK[b.status]) || (a.created_at < b.created_at ? -1 : 1));
+  const finished = live.filter((t) => t.status === "returned").sort((a, b) => ((b.returned_at ?? b.created_at) < (a.returned_at ?? a.created_at) ? -1 : 1));
+  const idleBuses = activeBuses.filter((b) => !running.some((t) => t.bus_id === b.id));
 
   const waiting = waitingByHub(batches, deliveries);
   const waitingHubs = Object.entries(waiting).sort((a, b) => b[1].portions - a[1].portions);
@@ -85,6 +81,22 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
   }
 
   const deliveryTrip = new Map(deliveries.map((d) => [d.id, d]));
+
+  const card = (trip: Trip) => {
+    const bus = trip.bus_id ? busById.get(trip.bus_id) ?? null : null;
+    return (
+      <BusCard
+        key={trip.id} trip={trip} bus={bus} hubName={hubName(trip.hub_id)} stops={stopsOf(trip)} now={now}
+        foodName={(id) => batchById.get(id)?.food ?? "Food"} siteName={(id) => siteById.get(id)?.name ?? "Site"}
+        pickable={[...free, ...(bus && !free.some((f) => f.id === bus.id) ? [bus] : [])]}
+        link={linkFor(trip.bus_id)} copied={copied === trip.id} busy={pending} isBusy={(k) => busy(trip.id + "|" + k)}
+        onCopy={() => { const u = linkFor(trip.bus_id); if (u) copy(trip, u); }}
+        onBus={(id) => run(trip.id + "|bus", () => setTripBus(trip.id, id))}
+        onTripStatus={(to) => run(trip.id + "|status:" + to, () => setTripStatusAsStaff(trip.id, to))}
+        onStop={(order, to) => run(trip.id + "|stop:" + order + ":" + to, () => setStopStatusAsStaff(trip.id, order, to))}
+      />
+    );
+  };
 
   return (
     <>
@@ -103,7 +115,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
           <ul className="flex flex-wrap gap-x-8 gap-y-3">
             {waitingHubs.map(([id, w]) => (
               <li key={id} className="flex flex-col gap-1">
-                <span className="flex items-baseline gap-2"><Soup className="size-4 self-center text-muted" aria-hidden /><b className="font-semibold">{id === "none" ? "No collection point" : hubName(id)}</b><span className="font-mono text-sm">{n0(w.portions)} portions · {w.batches} {w.batches === 1 ? "batch" : "batches"}</span></span>
+                <span className="flex items-baseline gap-2"><Soup className="size-4 self-center text-muted" aria-hidden /><b className="font-semibold">{id === "none" ? "No collection point" : hubName(id)}</b><span className="font-mono text-sm">{hubVolunteers(id)}{n0(w.portions)} packs waiting · {w.batches} {w.batches === 1 ? "batch" : "batches"}</span></span>
                 {loadable.has(id) && <Link className="link self-start" href={`/trips/load?hub=${id}`}><ClipboardList className="mr-1 inline size-3.5" aria-hidden />Show all loading lists for {id === "none" ? "No collection point" : hubName(id)}</Link>}
               </li>
             ))}
@@ -119,31 +131,35 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
 
       <section className="flex flex-col gap-4">
         <SectionHead title="Buses" aside={<>Updated {fmtTime(now)} · refreshes live · <Link href="/setup" className="underline underline-offset-4">Manage buses</Link></>} />
-        {cards.length === 0 ? (
+        {running.length === 0 && idleBuses.length === 0 && finished.length === 0 ? (
           <EmptyState icon={BusIcon} action={<Link href="/setup">Manage buses</Link>}>No buses or trips yet. Add buses in Setup, then plan trips.</EmptyState>
         ) : (
+          <>
           <div className="grid gap-4 lg:grid-cols-2">
-            {cards.map(({ key, bus, trip }) => trip ? (
-              <BusCard
-                key={key} trip={trip} bus={bus} hubName={hubName(trip.hub_id)} stops={stopsOf(trip)} now={now}
-                foodName={(id) => batchById.get(id)?.food ?? "Food"} siteName={(id) => siteById.get(id)?.name ?? "Site"}
-                pickable={[...free, ...(bus && !free.some((f) => f.id === bus.id) ? [bus] : [])]}
-                link={linkFor(trip.bus_id)} copied={copied === trip.id} busy={pending} isBusy={(k) => busy(trip.id + "|" + k)}
-                onCopy={() => { const u = linkFor(trip.bus_id); if (u) copy(trip, u); }}
-                onBus={(id) => run(trip.id + "|bus", () => setTripBus(trip.id, id))}
-                onTripStatus={(to) => run(trip.id + "|status:" + to, () => setTripStatusAsStaff(trip.id, to))}
-                onStop={(order, to) => run(trip.id + "|stop:" + order + ":" + to, () => setStopStatusAsStaff(trip.id, order, to))}
-              />
-            ) : (
-              <article key={key} className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
-                <div>
-                  <h3 className="text-base font-semibold">{bus?.name}</h3>
-                  <p className="text-sm text-muted">Capacity <span className="font-mono">{bus?.capacity}</span> packs{bus?.lead_name ? ` · ${bus.lead_name}` : ""}</p>
-                </div>
-                <Pill tone="green">Free</Pill>
-              </article>
-            ))}
+            {running.map((trip) => card(trip))}
+            {idleBuses.map((bus) => {
+              const last = live.filter((t) => t.bus_id === bus.id && t.status === "returned").sort((a, b) => ((b.returned_at ?? "") < (a.returned_at ?? "") ? -1 : 1))[0];
+              return (
+                <article key={bus.id} className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold">{bus.name}</h3>
+                    <p className="text-sm text-muted">Capacity <span className="font-mono">{bus.capacity}</span> packs{bus.lead_name ? ` · ${bus.lead_name}` : ""}{last?.returned_at ? <> · back at <span className="font-mono">{fmtTime(last.returned_at)}</span></> : ""}</p>
+                  </div>
+                  <Pill tone="green">Free</Pill>
+                </article>
+              );
+            })}
           </div>
+          {finished.length > 0 && (
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+                Finished trips <span className="font-mono text-muted">({finished.length})</span>
+              </summary>
+              <div className="mt-3 grid gap-4 lg:grid-cols-2">{finished.map((trip) => card(trip))}</div>
+            </details>
+          )}
+          </>
         )}
       </section>
 

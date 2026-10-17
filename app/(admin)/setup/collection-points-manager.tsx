@@ -10,8 +10,9 @@ import { useAction } from "../use-action";
 
 const ACT = "btn-line min-h-9 px-3 py-1 text-[13px] max-md:min-h-11";
 
-type Draft = { name: string; location_note: string; lead_name: string; lead_phone: string };
-const toDraft = (p: CollectionPoint): Draft => ({ name: p.name, location_note: p.location_note ?? "", lead_name: p.lead_name ?? "", lead_phone: p.lead_phone ?? "" });
+type Draft = { name: string; location_note: string; lead_name: string; lead_phone: string; volunteers: string };
+const toDraft = (p: CollectionPoint): Draft => ({ name: p.name, location_note: p.location_note ?? "", lead_name: p.lead_name ?? "", lead_phone: p.lead_phone ?? "", volunteers: p.volunteers == null ? "" : String(p.volunteers) });
+const toInput = (d: Draft) => ({ ...d, volunteers: d.volunteers.trim() === "" ? null : Number(d.volunteers) });
 
 export function CollectionPointsManager({ points, siteUrl }: { points: CollectionPoint[]; siteUrl: string }) {
   const toast = useToast();
@@ -39,11 +40,11 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
       </div>
       {points.length > 0 || adding ? (
         <table className={cardTable}>
-          <thead><tr><th className="th">Collection point</th><th className="th">Location note</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th className="th">Collection point</th><th className="th">Location note</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Volunteers</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {points.map((p) => (
               <PointRow key={p.id} point={p} pending={pending} saving={busy("save:" + p.id)} toggling={busy("toggle:" + p.id)}
-                onSave={(d) => run("save:" + p.id, () => saveCollectionPoint({ id: p.id, ...d }))}
+                onSave={(d) => run("save:" + p.id, () => saveCollectionPoint({ id: p.id, ...toInput(d) }))}
                 onToggle={() => run("toggle:" + p.id, () => setCollectionPointActive(p.id, !p.active))}
                 actions={p.active ? (
                   <div className="flex flex-wrap items-center gap-2">
@@ -58,7 +59,7 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
             ))}
             {adding && (
               <PointRow point={null} pending={pending} saving={busy("save:new")} toggling={false} onToggle={() => setAdding(false)}
-                onSave={(d) => run("save:new", () => saveCollectionPoint(d), () => setAdding(false))} actions={null} />
+                onSave={(d) => run("save:new", () => saveCollectionPoint(toInput(d)), () => setAdding(false))} actions={null} />
             )}
           </tbody>
         </table>
@@ -78,7 +79,7 @@ function PointRow({ point, pending, saving, toggling, onSave, onToggle, actions 
   point: CollectionPoint | null; pending: boolean; saving: boolean; toggling: boolean; onSave: (d: Draft) => void; onToggle: () => void; actions: React.ReactNode;
 }) {
   const isNew = !point;
-  const [d, setD] = useState<Draft>(point ? toDraft(point) : { name: "", location_note: "", lead_name: "", lead_phone: "" });
+  const [d, setD] = useState<Draft>(point ? toDraft(point) : { name: "", location_note: "", lead_name: "", lead_phone: "", volunteers: "" });
   const commit = () => { if (point && d.name.trim() && JSON.stringify(toDraft(point)) !== JSON.stringify(d)) onSave(d); };
   const nm = d.name || "new collection point";
   const dim = point && !point.active ? "opacity-60" : "";
@@ -89,6 +90,7 @@ function PointRow({ point, pending, saving, toggling, onSave, onToggle, actions 
       <td className="cell" data-label="Location note"><input aria-label={`Location note for ${nm}`} className="input-quiet min-w-36" value={d.location_note} placeholder="Where to find it" onChange={(e) => setD({ ...d, location_note: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Lead"><input aria-label={`Lead name for ${nm}`} className="input-quiet min-w-28" value={d.lead_name} placeholder="Name" onChange={(e) => setD({ ...d, lead_name: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Lead phone"><input aria-label={`Lead phone for ${nm}`} className="input-quiet min-w-32 font-mono" type="tel" value={d.lead_phone} placeholder="0803…" onChange={(e) => setD({ ...d, lead_phone: e.target.value })} onBlur={commit} /></td>
+      <td className="cell" data-label="Volunteers"><input aria-label={`Volunteers at ${nm}`} className="input-quiet w-20 font-mono max-md:w-full" type="number" inputMode="numeric" min={0} value={d.volunteers} placeholder="0" onChange={(e) => setD({ ...d, volunteers: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Link">{actions}</td>
       <td className="cell" data-label="">
         {isNew ? (

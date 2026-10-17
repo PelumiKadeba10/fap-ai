@@ -44,7 +44,7 @@ export default async function LivePage() {
           trips={trips}
           buses={buses}
           busLinks={busLinks.map((l) => ({ bus_id: l.bus_id, token: l.token }))}
-          hubs={hubs.map((h) => ({ id: h.id, name: h.name }))}
+          hubs={hubs.map((h) => ({ id: h.id, name: h.name, volunteers: h.volunteers, lead_name: h.lead_name }))}
           deliveries={deliveries}
           batches={batches}
           sites={sites}

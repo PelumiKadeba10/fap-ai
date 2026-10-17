@@ -138,3 +138,14 @@ export function defaultCapacity(buses: { capacity: number; active: boolean }[]):
   const caps = buses.filter((b) => b.active).map((b) => b.capacity);
   return caps.length ? Math.min(...caps) : DEFAULT_BUS_CAPACITY;
 }
+
+/**
+ * Keeps only as many trips as there are free buses. The trips with the least spare time at their tightest stop
+ * are kept (most urgent first); the rest stay waiting for the next free bus. Order of the kept trips is unchanged.
+ */
+export function limitToFreeBuses<T extends { stops: { spareMin: number }[] }>(trips: T[], freeBusCount: number): T[] {
+  if (freeBusCount >= trips.length) return trips;
+  const tight = (t: T) => (t.stops.length ? Math.min(...t.stops.map((s) => s.spareMin)) : Infinity);
+  const keep = new Set(trips.map((t, i) => i).sort((a, b) => tight(trips[a]) - tight(trips[b]) || a - b).slice(0, Math.max(0, freeBusCount)));
+  return trips.filter((_, i) => keep.has(i));
+}

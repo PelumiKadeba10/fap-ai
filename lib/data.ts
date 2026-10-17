@@ -4,7 +4,7 @@ import { EVENT_COOKIE } from "./event-cookie";
 import { foodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
-import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, ReviewStatus, Site, Trip, Volunteer } from "./types";
+import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, Pledge, ReviewStatus, Site, Trip, Volunteer } from "./types";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
 
@@ -164,4 +164,11 @@ export async function getBusLinks(eventId: string): Promise<BusLink[]> {
   const { data, error } = await supabase.from("bus_links").select("*").eq("event_id", eventId);
   if (error) throw error;
   return (data ?? []) as BusLink[];
+}
+
+export async function getPledges(eventId: string): Promise<Pledge[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("pledges").select("*").eq("event_id", eventId).order("pickup_from", { nullsFirst: false }).order("created_at");
+  if (error) throw error;
+  return (data ?? []) as Pledge[];
 }

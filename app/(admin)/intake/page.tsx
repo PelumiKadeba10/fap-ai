@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getPhotoUrls, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getPhotoUrls, getPledges, sumBy } from "@/lib/data";
+import { waitingByHub } from "@/lib/food-waiting";
+import { n0 } from "@/lib/format";
 import { EmptyState, PageHeader } from "../ui";
 import { IntakeBox } from "./intake-box";
 import { BatchTable } from "./batch-table";
 import { NeedsChecking } from "./needs-checking";
+import { PickupsCard } from "./pickups-card";
 import { SetupSummary } from "../setup-summary";
 
 export default async function IntakePage() {
@@ -12,14 +15,17 @@ export default async function IntakePage() {
   if (!event) {
     return <EmptyState action={<Link href="/event?new=1">Create an event</Link>}>Create the event first.</EmptyState>;
   }
-  const [approved, pending, points, deliveries] = await Promise.all([
+  const [approved, pending, points, deliveries, pledges] = await Promise.all([
     getBatches(event.id, "approved"),
     getBatches(event.id, "pending"),
     getCollectionPoints(event.id),
     getDeliveries(event.id),
+    getPledges(event.id),
   ]);
   const photos = await getPhotoUrls([...approved, ...pending]);
   const sent = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
+  const waiting = waitingByHub(approved, deliveries);
+  const pointNames = Object.fromEntries(points.map((p) => [p.id, p.name]));
 
   return (
     <>
@@ -30,7 +36,20 @@ export default async function IntakePage() {
 
       <SetupSummary points={points.length} />
 
-      <NeedsChecking eventId={event.id} batches={pending} pointNames={Object.fromEntries(points.map((p) => [p.id, p.name]))} photos={photos} />
+      {points.some((p) => p.active) && (
+        <ul className="flex flex-col gap-1 text-[15px]" aria-label="Collection points">
+          {points.filter((p) => p.active).map((p) => (
+            <li key={p.id}>
+              <b className="font-semibold">{p.name}</b>
+              {p.volunteers != null && <> · <span className="font-mono">{p.volunteers}</span> {p.volunteers === 1 ? "volunteer" : "volunteers"}</>}
+              {" "}· <span className="font-mono">{n0(waiting[p.id]?.portions ?? 0)}</span> packs waiting
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <PickupsCard eventId={event.id} pledges={pledges} pointNames={pointNames} />
+      <NeedsChecking eventId={event.id} batches={pending} pointNames={pointNames} photos={photos} />
       <BatchTable batches={approved} sent={Object.fromEntries(sent)} photos={photos} />
 
       <details className="group border-t border-line pt-5">

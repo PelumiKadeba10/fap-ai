@@ -21,20 +21,25 @@ export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFro
     guests_per_student: event?.guests_per_student ?? 0,
     meals_served: event?.meals_served ?? null,
     vendors: event?.vendors ?? 5,
+    // Empty = the default (food starts arriving when the event ends; no bus time set).
+    food_from: event?.food_from ? toLagosInput(event.food_from) : "",
+    bus_ready_by: event?.bus_ready_by ? toLagosInput(event.bus_ready_by) : "",
   });
   const toast = useToast();
   const router = useRouter();
   const [pending, start] = useTransition();
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const v = e.target.value;
-    setF((p) => ({ ...p, [k]: k === "name" || k === "type" || k === "starts" ? v : k === "meals_served" ? (v === "" ? null : Number(v)) : Number(v) }));
+    setF((p) => ({ ...p, [k]: k === "name" || k === "type" || k === "starts" || k === "food_from" || k === "bus_ready_by" ? v : k === "meals_served" ? (v === "" ? null : Number(v)) : Number(v) }));
   };
 
-  const p = useMemo(() => predict({ ...f, starts_at: fromLagosInput(f.starts) }), [f]);
+  const foodFrom = f.food_from ? fromLagosInput(f.food_from) : null;
+  const p = useMemo(() => predict({ ...f, starts_at: fromLagosInput(f.starts), food_from: foodFrom }), [f, foodFrom]);
 
   function onSave() {
     start(async () => {
-      const r = await saveEvent({ id: event?.id, ...f, starts_at: fromLagosInput(f.starts), copy_from: !event && copy && copyFrom ? copyFrom.id : undefined });
+      const { food_from: _food, bus_ready_by: _bus, ...rest } = f; // eslint-disable-line @typescript-eslint/no-unused-vars
+      const r = await saveEvent({ id: event?.id, ...rest, starts_at: fromLagosInput(f.starts), food_from: foodFrom, bus_ready_by: f.bus_ready_by ? fromLagosInput(f.bus_ready_by) : null, copy_from: !event && copy && copyFrom ? copyFrom.id : undefined });
       toast(r.ok, r.ok ? (event ? "Event saved" : "Event created") : r.error);
       if (r.ok && !event) { router.replace("/setup"); router.refresh(); }
     });
@@ -42,7 +47,7 @@ export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFro
 
   const steps = [
     { t: p.volunteersBy, k: "Volunteers in place", s: "30 minutes before" },
-    { t: p.surplusFrom, k: "Surplus available", s: "when the event ends" },
+    { t: p.surplusFrom, k: "Surplus available", s: f.food_from ? "food starts arriving" : "when the event ends" },
     { t: p.cookedDeliverBy, k: "Cooked food delivered by", s: "2-hour safe window" },
   ];
 
@@ -60,6 +65,10 @@ export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFro
           <label className="label">Number of students<input id="ev-students" className="input font-mono" type="number" min={0} step={100} value={f.students} onChange={set("students")} /></label>
           <label className="label">Start (date and time)<input id="ev-start" className="input" type="datetime-local" value={f.starts} onChange={set("starts")} /></label>
           <label className="label">Duration (hours)<input id="ev-duration" className="input font-mono" type="number" min={1} max={24} step={0.5} value={f.duration_hours} onChange={set("duration_hours")} /></label>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="label">Food starts arriving at<input id="ev-food-from" className="input" type="datetime-local" value={f.food_from} onChange={set("food_from")} /><span className="text-xs font-normal text-muted">Leave empty to use the end of the event.</span></label>
+          <label className="label">Bus at collection point by<input id="ev-bus-ready" className="input" type="datetime-local" value={f.bus_ready_by} onChange={set("bus_ready_by")} /></label>
         </div>
         <details className="group border-t border-line pt-4" open={!!(f.guests_per_student || f.meals_served || f.vendors !== 5)}>
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium [&::-webkit-details-marker]:hidden">

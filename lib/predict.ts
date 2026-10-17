@@ -21,6 +21,8 @@ export interface PredictInput {
   vendors?: number;
   starts_at: string | Date;
   duration_hours: number;
+  /** "Food starts arriving at". Empty = the event end. */
+  food_from?: string | Date | null;
 }
 
 export interface Prediction {
@@ -53,6 +55,7 @@ export function predict(e: PredictInput): Prediction {
 
   const start = new Date(e.starts_at).getTime();
   const end = start + e.duration_hours * 3600_000;
+  const foodFrom = e.food_from ? new Date(e.food_from).getTime() : end;
   return {
     people,
     meals,
@@ -65,8 +68,8 @@ export function predict(e: PredictInput): Prediction {
     carriers: Math.ceil(surplus / 50),
     trips: Math.ceil(surplus / 400),
     collectionPoints: Math.max(1, vendors),
-    surplusFrom: new Date(end),
+    surplusFrom: new Date(foodFrom),
     volunteersBy: new Date(end - 30 * 60000),
-    cookedDeliverBy: new Date(end + CATEGORIES.cooked_meal.windowMin * 60000),
+    cookedDeliverBy: new Date(foodFrom + CATEGORIES.cooked_meal.windowMin * 60000),
   };
 }

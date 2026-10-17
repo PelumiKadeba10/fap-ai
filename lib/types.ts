@@ -20,6 +20,12 @@ export interface EventRow {
   duration_hours: number;
   venue_name: string;
   active: boolean;
+  /** Packs in one carton; null = show packs only. */
+  packs_per_carton: number | null;
+  /** "Food starts arriving at". Null = the event end (start + duration). */
+  food_from: string | null;
+  /** "Bus at collection point by". */
+  bus_ready_by: string | null;
 }
 
 export interface Site {
@@ -60,6 +66,8 @@ export interface Batch {
   review_status: ReviewStatus;
   collection_point_id: string | null;
   photo_path: string | null;
+  /** 'pickup' = collected from a pledged tent. */
+  source: string | null;
   created_at: string;
 }
 
@@ -70,6 +78,7 @@ export interface CollectionPoint {
   location_note: string | null;
   lead_name: string | null;
   lead_phone: string | null;
+  volunteers: number | null;
   token: string;
   active: boolean;
   created_at: string;
@@ -124,6 +133,8 @@ export interface Trip {
   event_id: string;
   hub_id: string | null;
   bus_id: string | null;
+  /** The bus's 1st, 2nd, 3rd... trip of the event; null while no bus is chosen. */
+  trip_no: number | null;
   status: TripStatus;
   created_at: string;
   departed_at: string | null;
@@ -136,5 +147,25 @@ export interface BusLink {
   event_id: string;
   bus_id: string;
   token: string;
+  created_at: string;
+}
+
+export type PledgeStatus = "pledged" | "on_the_way" | "picked_up" | "no_food";
+
+/** A tent that promised food, to be collected from `pickup_from` and brought to a collection point. */
+export interface Pledge {
+  id: string;
+  event_id: string;
+  tent_name: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  pledged_packs: number | null;
+  pickup_from: string | null;
+  collection_point_id: string | null;
+  status: PledgeStatus;
+  picked_up_at: string | null;
+  picked_up_packs: number | null;
+  batch_id: string | null;
+  notes: string | null;
   created_at: string;
 }

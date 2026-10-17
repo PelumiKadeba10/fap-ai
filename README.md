@@ -14,7 +14,7 @@ One Next.js app, deployed on Vercel, with Supabase for the database, sign-in and
 
 1. **Install:** `npm install`
 2. **Run:** `npm run dev` → http://localhost:3000 → sign in.
-3. **Test the logic:** `npm test` (8 tests: prediction, urgency, matching, parser, time zone, status flow).
+3. **Test the logic:** `npm test` (prediction, urgency, matching, parser, time zone, status flow, trips, cartons, pick-ups).
 
 
 ## How a night runs

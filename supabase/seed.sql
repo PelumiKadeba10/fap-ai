@@ -1,8 +1,8 @@
 -- Example data for testing. Replace the places with the real beneficiary list before Convocation.
--- Run after all migrations (0001 to 0006).
+-- Run after all migrations (0001 to 0007).
 
-insert into public.events (name, type, students, starts_at, duration_hours)
-values ('Convocation 2026', 'convocation', 8000, '2026-10-30T14:00:00+01:00', 6);
+insert into public.events (name, type, students, starts_at, duration_hours, packs_per_carton, food_from, bus_ready_by)
+values ('Convocation 2026', 'convocation', 8000, '2026-10-30T14:00:00+01:00', 6, 10, '2026-10-30T13:00:00+01:00', '2026-10-30T11:00:00+01:00');
 
 -- Places are a shared list...
 insert into public.sites (name, kind, history, capacity, km, direction) values
@@ -20,17 +20,27 @@ join (values ('School A', 200), ('Community B', 100), ('Elderly Home C', 30), ('
 join public.sites s on s.name = v.name
 where e.name = 'Convocation 2026';
 
--- Collection points and buses belong to the event.
-insert into public.collection_points (event_id, name, location_note, lead_name)
-select e.id, v.name, v.note, v.lead
+-- Collection points, buses and pledged tents belong to the event.
+insert into public.collection_points (event_id, name, location_note, lead_name, volunteers)
+select e.id, v.name, v.note, v.lead, v.volunteers
 from public.events e
-join (values ('Vendor 1 – Cafeteria', 'Student cafeteria, back door', 'Lead 1'), ('Vendor 2 – Convocation Centre', 'Main hall kitchen', 'Lead 2')) as v(name, note, lead) on true
+join (values ('Stadium', 'Main stadium, gate 2', 'Lead 1', 40), ('CUSS', 'CUSS building, ground floor', 'Lead 2', 20)) as v(name, note, lead, volunteers) on true
 where e.name = 'Convocation 2026';
 
 insert into public.buses (event_id, name, capacity)
-select e.id, v.name, 400
+select e.id, 'Bus 1', 400
 from public.events e
-join (values ('Bus 1'), ('Bus 2'), ('Bus 3')) as v(name) on true
+where e.name = 'Convocation 2026';
+
+insert into public.pledges (event_id, tent_name, contact_name, contact_phone, pledged_packs, pickup_from, collection_point_id)
+select e.id, v.tent, v.contact, v.phone, v.packs, v.pickup::timestamptz, cp.id
+from public.events e
+join (values
+  ('Tent 1', 'Tent lead 1', '+2348000000011', 200, '2026-10-30T13:00:00+01:00', 'Stadium'),
+  ('Tent 2', 'Tent lead 2', '+2348000000012', 150, '2026-10-30T13:30:00+01:00', 'Stadium'),
+  ('Tent 3', 'Tent lead 3', '+2348000000013', 100, '2026-10-30T14:00:00+01:00', 'CUSS')
+) as v(tent, contact, phone, packs, pickup, point) on true
+join public.collection_points cp on cp.event_id = e.id and cp.name = v.point
 where e.name = 'Convocation 2026';
 
 insert into public.volunteers (name, phone, vehicle) values

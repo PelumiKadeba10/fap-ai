@@ -5,6 +5,7 @@ import { AlertTriangle, Bell, Check, ClipboardList, Copy, MessageCircle } from "
 import type { Bus, Delivery, Trip, TripStatus } from "@/lib/types";
 import { ATTENTION_MIN } from "@/lib/status";
 import { TRIP_STATUS, canTripMove, stopAlerts, stopStatus, type Stop } from "@/lib/trip-status";
+import { tripPhase } from "@/lib/bus-state";
 import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
 import { Spinner } from "@/components/spinner";
 import { Pill, StatusPill } from "../ui";
@@ -43,8 +44,11 @@ export function BusCard(p: BusCardProps) {
   const alerts = ["cancelled", "returned"].includes(trip.status) ? [] : stopAlerts(stops, now, ATTENTION_MIN);
   const next = stops.find((s) => stopStatus(s.items.map((d) => d.status)) !== "delivered");
   const nextLeft = next ? Math.min(...next.items.filter((d) => d.status !== "delivered").map((d) => minutesBetween(now, d.safe_until))) : null;
-  const st = TRIP_STATUS[trip.status];
-  const headline = trip.status === "loading" ? `Loading at ${p.hubName}` : trip.status === "planned" ? `Planned · load at ${p.hubName}` : trip.status === "departed" ? "On the road" : st.label;
+  const phase = tripPhase(trip.status, stops.flatMap((s) => s.items.map((d) => d.status)));
+  // A departed trip with every stop delivered is "Returning" until the bus lead taps "Back at collection point".
+  const st = phase === "returning" ? { label: "Returning", tone: "orange" as const } : TRIP_STATUS[trip.status];
+  const headline = trip.status === "loading" ? `Loading at ${p.hubName}` : trip.status === "planned" ? `Planned · load at ${p.hubName}` : phase === "returning" ? "Returning to the collection point" : trip.status === "departed" ? "On the road" : st.label;
+  const stopNames = stops.map((s) => p.siteName(s.siteId)).join(", ");
   const canEditBus = trip.status === "planned" || trip.status === "loading";
 
   // The lead gets the link once for the night; later trips just need a short nudge.
@@ -58,8 +62,8 @@ export function BusCard(p: BusCardProps) {
     <article className={`flex flex-col gap-3.5 rounded-xl border border-line p-4 ${alerts.length ? "border-l-4 border-l-crit" : ""}`} aria-label={`${bus?.name ?? "Unassigned"} trip`}>
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h3 className="text-base font-semibold">{bus?.name ?? "No bus yet"} <span className="font-normal text-muted">· {p.hubName}</span></h3>
-          <p className="mt-0.5 text-sm text-muted">{headline} · <span className="font-mono">{total}</span> packs{bus?.lead_name ? ` · ${bus.lead_name}` : ""}</p>
+          <h3 className="text-base font-semibold break-words">{bus?.name ?? "No bus yet"}{trip.trip_no ? ` · Trip ${trip.trip_no}` : ""}{stopNames && <span className="font-normal"> · {stopNames}</span>}</h3>
+          <p className="mt-0.5 text-sm text-muted">{p.hubName} · {headline} · <span className="font-mono">{total}</span> packs{bus?.lead_name ? ` · ${bus.lead_name}` : ""}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <Pill tone={st.tone}>{st.label}</Pill>
