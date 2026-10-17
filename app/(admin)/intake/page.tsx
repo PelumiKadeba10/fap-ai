@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, MapPinned, PencilLine } from "lucide-react";
 import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getPhotoUrls, getPledges, sumBy } from "@/lib/data";
 import { waitingByHub } from "@/lib/food-waiting";
 import { n0 } from "@/lib/format";
-import { EmptyState, PageHeader } from "../ui";
+import { EmptyState, PageHeader, SectionCard } from "../ui";
 import { IntakeBox } from "./intake-box";
 import { BatchTable } from "./batch-table";
 import { NeedsChecking } from "./needs-checking";
@@ -37,6 +37,7 @@ export default async function IntakePage() {
       <SetupSummary points={points.length} />
 
       {points.some((p) => p.active) && (
+        <SectionCard id="points" title="Collection points" icon={MapPinned} accent="blue" count={points.filter((p) => p.active).length} aside="volunteers and packs waiting">
         <ul className="flex flex-col gap-1 text-[15px]" aria-label="Collection points">
           {points.filter((p) => p.active).map((p) => (
             <li key={p.id}>
@@ -46,20 +47,23 @@ export default async function IntakePage() {
             </li>
           ))}
         </ul>
+        </SectionCard>
       )}
 
       <PickupsCard eventId={event.id} pledges={pledges} pointNames={pointNames} />
       <NeedsChecking eventId={event.id} batches={pending} pointNames={pointNames} photos={photos} />
       <BatchTable batches={approved} sent={Object.fromEntries(sent)} photos={photos} />
 
-      <details className="group border-t border-line pt-5">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-base font-semibold [&::-webkit-details-marker]:hidden">
-          <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
-          Add food yourself
-        </summary>
-        <p className="mt-2 mb-6 text-sm text-muted">Use this if a collection point can’t use its link, e.g. no data or a phone call.</p>
-        <IntakeBox hubs={points.filter((p) => p.active)} />
-      </details>
+      <SectionCard id="add-food" title="Add food yourself" icon={PencilLine} accent="ink" aside="for a collection point that can’t use its link">
+        <details className="group">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-base font-semibold [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+            Open the form
+          </summary>
+          <p className="mt-2 mb-6 text-sm text-muted">Use this if a collection point can’t use its link, e.g. no data or a phone call.</p>
+          <IntakeBox hubs={points.filter((p) => p.active)} />
+        </details>
+      </SectionCard>
 
     </>
   );

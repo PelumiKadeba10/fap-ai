@@ -5,7 +5,7 @@ import type { Bus } from "@/lib/types";
 import { packsFromCartons } from "@/lib/cartons";
 import { Spinner } from "@/components/spinner";
 import { saveBus, setBusActive } from "../actions";
-import { EmptyState, Pill, cardTable } from "../ui";
+import { EmptyState, Pill, SectionCard, cardTable } from "../ui";
 import { useAction } from "../use-action";
 import { useToast } from "../toast";
 
@@ -39,11 +39,7 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName, packsP
   }
 
   return (
-    <section id="buses" className="flex scroll-mt-24 flex-col gap-4" aria-labelledby="buses-title">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="buses-title" className="h2">Buses for this event</h2>
-        <span className="text-[13px] text-muted">One link per bus lead for the whole event, no login needed.</span>
-      </div>
+    <SectionCard id="buses" title="Buses for this event" icon={BusIcon} accent="green" count={buses.length} aside="One link per bus lead for the whole event, no login needed.">
       {packsPerCarton ? (
         <div className="flex flex-wrap items-center gap-3 text-sm" role="group" aria-label="Capacity unit">
           <span className="text-muted">Enter capacity in</span>
@@ -84,7 +80,7 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName, packsP
           <Plus className="size-4" aria-hidden /> Add bus
         </button>
       )}
-    </section>
+    </SectionCard>
   );
 }
 

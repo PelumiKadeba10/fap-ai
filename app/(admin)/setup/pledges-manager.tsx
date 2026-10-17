@@ -6,7 +6,7 @@ import { fmtDateTime, fromLagosInput, toLagosInput } from "@/lib/format";
 import { PLEDGE_STATUS, byPickupTime } from "@/lib/pledges";
 import { Spinner } from "@/components/spinner";
 import { importPledges, removePledge, savePledge } from "../actions";
-import { EmptyState, Pill, SectionHead, cardTable } from "../ui";
+import { EmptyState, Pill, SectionCard, SectionHead, cardTable } from "../ui";
 import { useAction } from "../use-action";
 import { useToast } from "../toast";
 
@@ -36,11 +36,7 @@ export function PledgesManager({ pledges, points, defaultPickup }: { pledges: Pl
   const active = points.filter((p) => p.active);
 
   return (
-    <section id="pledges" className="flex scroll-mt-24 flex-col gap-4" aria-labelledby="pledges-title">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="pledges-title" className="h2">Pledged tents</h2>
-        <span className="text-[13px] text-muted">Tents that promised food. The collection point’s lead sees them on the Pick-ups tab of their link.</span>
-      </div>
+    <SectionCard id="pledges" title="Pledged tents" icon={HandHeart} accent="red" count={pledges.length} aside="The collection point’s lead sees them on the Pick-ups tab of their link.">
 
       {pledges.length > 0 || adding ? (
         <table className={cardTable}>
@@ -93,7 +89,7 @@ export function PledgesManager({ pledges, points, defaultPickup }: { pledges: Pl
           </div>
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }
 

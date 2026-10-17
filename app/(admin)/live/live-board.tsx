@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bus as BusIcon, ChevronRight, ClipboardList, Soup } from "lucide-react";
+import { Bus as BusIcon, ChevronRight, ClipboardList, Radio, Soup } from "lucide-react";
 import type { Batch, Bus, BusLink, CollectionPoint, Delivery, DeliveryStatus, Site, Trip } from "@/lib/types";
 import { ATTENTION_MIN, STATUS } from "@/lib/status";
 import { ACTIVE_TRIP, freeBuses, groupStops, stopAlerts } from "@/lib/trip-status";
@@ -10,7 +10,7 @@ import { waitingByHub } from "@/lib/food-waiting";
 import { fmtTime, n0 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { setStopStatusAsStaff, setTripBus, setTripStatusAsStaff } from "../actions";
-import { EmptyState, Pill, SectionHead, Stat } from "../ui";
+import { EmptyState, Pill, SectionCard, Stat } from "../ui";
 import { useToast } from "../toast";
 import { useAction } from "../use-action";
 import { BusCard } from "./bus-card";
@@ -107,8 +107,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
         <Stat label="Stops needing attention" value={String(attention)} tone={attention ? "red" : "green"} hint={attention ? "problem or near safe time" : "all on track"} />
       </div>
 
-      <section className="flex flex-col gap-3" aria-label="Food waiting per collection point">
-        <SectionHead title="Food waiting per collection point" aside="approved food not yet on a trip" />
+      <SectionCard id="waiting" title="Food waiting per collection point" icon={Soup} accent="orange" count={waitingHubs.length} aside="approved food not yet on a trip">
         {waitingHubs.length === 0 ? (
           <p className="text-sm text-muted">Nothing waiting. Everything checked so far is on a trip.</p>
         ) : (
@@ -127,10 +126,9 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
             <Link href="/match" className="underline underline-offset-4">Plan trips</Link>
           </p>
         )}
-      </section>
+      </SectionCard>
 
-      <section className="flex flex-col gap-4">
-        <SectionHead title="Buses" aside={<>Updated {fmtTime(now)} · refreshes live · <Link href="/setup" className="underline underline-offset-4">Manage buses</Link></>} />
+      <SectionCard id="buses" title="Buses" icon={BusIcon} accent="green" count={activeBuses.length} aside={<>Updated {fmtTime(now)} · refreshes live · <Link href="/setup" className="underline underline-offset-4">Manage buses</Link></>}>
         {running.length === 0 && idleBuses.length === 0 && finished.length === 0 ? (
           <EmptyState icon={BusIcon} action={<Link href="/setup">Manage buses</Link>}>No buses or trips yet. Add buses in Setup, then plan trips.</EmptyState>
         ) : (
@@ -161,11 +159,10 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
           )}
           </>
         )}
-      </section>
+      </SectionCard>
 
       <div>
-        <section className="flex flex-col gap-4">
-          <SectionHead title="Latest updates" />
+        <SectionCard id="updates" title="Latest updates" icon={Radio} accent="blue" count={updates.length}>
           {updates.length === 0 ? <p className="text-sm text-muted">No updates yet.</p> : (
             <ol className="flex max-h-80 flex-col overflow-auto border-l border-line pl-4 text-sm">
               {updates.map((u) => {
@@ -183,7 +180,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
               })}
             </ol>
           )}
-        </section>
+        </SectionCard>
       </div>
 
     </>

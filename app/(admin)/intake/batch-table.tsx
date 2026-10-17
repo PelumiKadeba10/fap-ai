@@ -3,7 +3,7 @@ import type { Batch } from "@/lib/types";
 import { CATEGORIES, urgency } from "@/lib/urgency";
 import { fmtDur, fmtTime, n0 } from "@/lib/format";
 import { removeBatch } from "../actions";
-import { EmptyState, SectionHead, UrgencyPill, cardTable } from "../ui";
+import { EmptyState, SectionCard, UrgencyPill, cardTable } from "../ui";
 import { Spinner } from "@/components/spinner";
 import { useAction } from "../use-action";
 import { PhotoIcon } from "../photo-viewer";
@@ -16,8 +16,7 @@ export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: 
   const newest = [...batches].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
 
   return (
-    <section className="flex flex-col gap-4">
-      <SectionHead title="Recovered batches" aside={<>{batches.length} batches · <span className="font-mono">{n0(total)}</span> portions</>} />
+    <SectionCard id="recovered" title="Recovered batches" icon={PackageOpen} accent="green" count={batches.length} aside={<><span className="font-mono">{n0(total)}</span> portions</>}>
       {batches.length === 0 ? (
         <EmptyState icon={PackageOpen}>No food confirmed yet. Confirm what the collection points send, and it shows up here.</EmptyState>
       ) : (
@@ -51,6 +50,6 @@ export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: 
           </tbody>
         </table>
       )}
-    </section>
+    </SectionCard>
   );
 }

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, MapPinned, MessageCircle, Plus } from "lucide-react";
 import type { CollectionPoint } from "@/lib/types";
 import { saveCollectionPoint, setCollectionPointActive } from "../actions";
-import { EmptyState, Pill, SectionHead, cardTable } from "../ui";
+import { EmptyState, Pill, SectionCard, cardTable } from "../ui";
 import { Spinner } from "@/components/spinner";
 import { useToast } from "../toast";
 import { useAction } from "../use-action";
@@ -33,11 +33,7 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
   }
 
   return (
-    <section id="collection-points" className="flex scroll-mt-24 flex-col gap-4" aria-labelledby="cp-title">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="cp-title" className="h2">Collection points for this event</h2>
-        <span className="text-[13px] text-muted">Each lead gets a link to report food from their phone. No login needed. Links are only for this event.</span>
-      </div>
+    <SectionCard id="collection-points" title="Collection points for this event" icon={MapPinned} accent="orange" count={points.length} aside="Each lead gets a link to report food from their phone. No login needed.">
       {points.length > 0 || adding ? (
         <table className={cardTable}>
           <thead><tr><th className="th">Collection point</th><th className="th">Location note</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Volunteers</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
@@ -71,7 +67,7 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
           <Plus className="size-4" aria-hidden /> Add collection point
         </button>
       )}
-    </section>
+    </SectionCard>
   );
 }
 

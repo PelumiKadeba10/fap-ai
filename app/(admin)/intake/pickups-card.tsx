@@ -6,7 +6,7 @@ import type { Pledge } from "@/lib/types";
 import { fmtTime } from "@/lib/format";
 import { LATE_PICKUP_MIN, PLEDGE_STATUS, byPickupTime, isLate, pledgeCounts } from "@/lib/pledges";
 import { createClient } from "@/lib/supabase/client";
-import { Pill } from "../ui";
+import { Pill, SectionCard } from "../ui";
 
 /** Pledged tents: how many are pledged, on the way, picked up or empty, and who is late. Updates live. */
 export function PickupsCard({ eventId, pledges, pointNames }: { eventId: string; pledges: Pledge[]; pointNames: Record<string, string> }) {
@@ -28,11 +28,7 @@ export function PickupsCard({ eventId, pledges, pointNames }: { eventId: string;
   const late = pledges.filter((p) => isLate(p, now)).length;
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="pickups-title">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <h2 id="pickups-title" className="h2">Pick-ups</h2>
-        {late > 0 && <Pill tone="red" icon={AlertTriangle}>{late} late</Pill>}
-      </div>
+    <SectionCard id="pickups" title="Pick-ups" icon={HandHeart} accent="red" count={pledges.length} badge={late > 0 ? <Pill tone="red" icon={AlertTriangle}>{late} late</Pill> : undefined}>
       <p className="font-mono text-[13px] text-muted">{c.pledged} pledged · {c.on_the_way} on the way · {c.picked_up} picked up · {c.no_food} no food</p>
       <ul className="flex flex-col">
         {byPickupTime(pledges).map((p) => {
@@ -62,6 +58,6 @@ export function PickupsCard({ eventId, pledges, pointNames }: { eventId: string;
         })}
       </ul>
       <p className="flex items-center gap-1.5 text-xs text-muted"><HandHeart className="size-3.5" aria-hidden />Tents appear here from the Pledged tents list in Setup. A picked-up tent’s food shows under Needs checking.</p>
-    </section>
+    </SectionCard>
   );
 }

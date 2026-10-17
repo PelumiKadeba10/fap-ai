@@ -8,7 +8,7 @@ import { CATEGORIES } from "@/lib/urgency";
 import { fmtTime, toLagosInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { confirmBatch, discardBatch } from "../actions";
-import { Badge, EmptyState, Pill } from "../ui";
+import { Badge, EmptyState, Pill, SectionCard } from "../ui";
 import { useToast } from "../toast";
 import { useAction } from "../use-action";
 import { PhotoThumb } from "../photo-viewer";
@@ -29,11 +29,7 @@ export function NeedsChecking({ eventId, batches, pointNames, photos }: { eventI
   const newest = [...batches].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="needs-checking">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <h2 id="needs-checking" className="h2">Needs checking</h2>
-        {newest.length > 0 && <Pill tone="orange">{newest.length} waiting</Pill>}
-      </div>
+    <SectionCard id="needs-checking" title="Needs checking" icon={Inbox} accent="orange" badge={newest.length > 0 ? <Pill tone="orange">{newest.length} waiting</Pill> : undefined}>
       {newest.length === 0 ? (
         <EmptyState icon={Inbox}>Nothing waiting. Food reported through collection links shows up here.</EmptyState>
       ) : (
@@ -41,7 +37,7 @@ export function NeedsChecking({ eventId, batches, pointNames, photos }: { eventI
           {newest.map((b) => <PendingItem key={b.id} batch={b} photo={photos[b.id]} point={b.collection_point_id ? pointNames[b.collection_point_id] : undefined} />)}
         </ul>
       )}
-    </section>
+    </SectionCard>
   );
 }
 

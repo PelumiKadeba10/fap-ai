@@ -6,7 +6,7 @@ import { DIRECTIONS, siteNeed } from "@/lib/match";
 import { n0 } from "@/lib/format";
 import { Spinner } from "@/components/spinner";
 import { addEventSite, createPlace, removeEventSite, setEventSitePeople, updatePlaceDetails } from "../actions";
-import { EmptyState, SectionHead } from "../ui";
+import { EmptyState, SectionCard, SectionHead } from "../ui";
 import { useAction } from "../use-action";
 
 const KINDS: SiteKind[] = ["School", "Community", "Care home", "Shelter", "Other"];
@@ -22,11 +22,7 @@ export function PlacesManager({ places, saved }: { places: EventPlace[]; saved: 
   const total = places.reduce((t, p) => t + p.people, 0);
 
   return (
-    <section id="places" className="flex scroll-mt-24 flex-col gap-4" aria-labelledby="places-title">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="places-title" className="h2">Places for this event</h2>
-        <span className="text-[13px] text-muted"><span className="font-mono">{places.length}</span> {places.length === 1 ? "place" : "places"} · <span className="font-mono">{n0(total)}</span> people</span>
-      </div>
+    <SectionCard id="places" title="Places for this event" icon={MapPin} accent="blue" count={places.length} aside={<><span className="font-mono">{n0(total)}</span> people</>}>
 
       {places.length === 0 ? (
         <EmptyState icon={MapPin}>No places for this event yet. Add the places you will deliver to.</EmptyState>
@@ -45,7 +41,7 @@ export function PlacesManager({ places, saved }: { places: EventPlace[]; saved: 
       <AddPlace available={saved.filter((s) => !inEvent.has(s.id))} pending={pending} busy={busy}
         onAddSaved={(id, people, after) => run("add:" + id, () => addEventSite(id, people), after)}
         onCreate={(d, people, after) => run("create", () => createPlace({ ...d, people }), after)} />
-    </section>
+    </SectionCard>
   );
 }
 

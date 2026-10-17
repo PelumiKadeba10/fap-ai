@@ -8,6 +8,7 @@ import { CollectionPointsManager } from "./collection-points-manager";
 import { CopySetup } from "./copy-setup";
 import { PlacesManager } from "./places-manager";
 import { PledgesManager } from "./pledges-manager";
+import { SectionLinks } from "./section-links";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function SetupPage() {
         title="Set up this event"
         description="The places you deliver to, the collection points that report food, the tents that pledged food, and the buses that carry it. Each event has its own setup."
       />
+      <SectionLinks />
       {empty && previous && <CopySetup from={{ id: previous.id, name: previous.name }} />}
       <PlacesManager places={places} saved={saved} />
       <CollectionPointsManager points={points} siteUrl={process.env.SITE_URL ?? ""} />
