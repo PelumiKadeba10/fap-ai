@@ -31,7 +31,7 @@ export default async function IntakePage() {
     <>
       <PageHeader
         title="Check what the collection points send."
-        description="Each collection point reports food from its own link. Check every submission before it is matched. FAP AI reads the message and scores its urgency."
+        description="Each collection point reports food from its own link. Check every submission before it is matched. FAP AI scores its urgency."
       />
 
       <SetupSummary points={points.length} />

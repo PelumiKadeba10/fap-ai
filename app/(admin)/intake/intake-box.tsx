@@ -1,130 +1,51 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { Category, CollectionPoint, ParsedRecord } from "@/lib/types";
 import { CATEGORIES, urgency } from "@/lib/urgency";
 import { fmtDur, fmtTime, lagosTimeToday } from "@/lib/format";
 import { addBatch } from "../actions";
-import { Badge, EmptyState, UrgencyPill } from "../ui";
+import { UrgencyPill } from "../ui";
 import { useToast } from "../toast";
-import { Bot, FileText, Loader2, MessageSquareText, PenLine, Save, Sparkles, X } from "lucide-react";
+import { Loader2, Save, X } from "lucide-react";
 
-const EXAMPLES = [
-  "350 jollof rice and chicken, packed 8:15pm at Convocation Centre, still hot",
-  "about 80 plates of moi moi and fried plantain at the cafeteria, collected 8:50pm, warm",
-  "6 crates of bottled water + 40 packs of biscuits by the chapel, sealed",
-];
+const BLANK: ParsedRecord = { food: "", quantity: 0, collected_time: null, location: "Convocation Centre", condition: "", category: "cooked_meal", notes: "" };
 
-const BY = {
-  claude: { icon: Sparkles, text: "Read by Claude" },
-  local: { icon: Bot, text: "Offline parser" },
-  manual: { icon: PenLine, text: "Manual entry" },
-} as const;
-
-/** `hubs` are the active collection points. When there are any, pasted food must say which hub it is in. */
+/** `hubs` are the active collection points. When there are any, the food must say which hub it is in. */
 export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">[] }) {
-  const [message, setMessage] = useState("");
-  const [rec, setRec] = useState<ParsedRecord | null>(null);
-  const [parsedBy, setParsedBy] = useState<"claude" | "local" | "manual">("manual");
-  const [error, setError] = useState("");
+  const [rec, setRec] = useState<ParsedRecord>(BLANK);
   const [hubId, setHubId] = useState("");
-  const [parsing, setParsing] = useState(false);
   const [saving, startSave] = useTransition();
   const toast = useToast();
 
-  async function parse() {
-    setParsing(true);
-    setError("");
-    try {
-      const res = await fetch("/api/parse", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn’t read that message.");
-      setRec(data.record);
-      setParsedBy(data.parsedBy);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn’t read that message.");
-    } finally {
-      setParsing(false);
-    }
-  }
-
   function cancel() {
-    setRec(null);
-    setMessage("");
+    setRec(BLANK);
     setHubId("");
-    setError("");
   }
-
-  // Escape closes the record form (e.g. an "Enter manually" form opened by mistake).
-  useEffect(() => {
-    if (!rec) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") cancel(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rec]);
 
   function save() {
-    if (!rec) return;
     startSave(async () => {
       const r = await addBatch({
         food: rec.food, qty: rec.quantity, category: rec.category, collected_time: rec.collected_time,
         location: rec.location, condition: rec.condition, notes: rec.notes,
-        raw_message: message || null, parsed_by: parsedBy, collection_point_id: hubId || null,
+        raw_message: null, parsed_by: "manual", collection_point_id: hubId || null,
       });
       if (!r.ok) return toast(false, r.error);
-      toast(true, `Batch saved: ${rec.quantity} portions of ${rec.food}`);
-      setRec(null);
-      setMessage("");
-      setHubId("");
+      toast(true, `Batch saved: ${rec.quantity} boxes/cartons of ${rec.food}`);
+      cancel();
     });
   }
 
-  const edit = <K extends keyof ParsedRecord>(k: K, v: ParsedRecord[K]) => setRec((p) => (p ? { ...p, [k]: v } : p));
-  const collected = rec?.collected_time ? lagosTimeToday(rec.collected_time) : new Date();
-  const u = rec ? urgency({ category: rec.category, qty: rec.quantity, collected_at: collected ?? new Date() }) : null;
-  const by = BY[parsedBy];
+  const edit = <K extends keyof ParsedRecord>(k: K, v: ParsedRecord[K]) => setRec((p) => ({ ...p, [k]: v }));
+  const collected = rec.collected_time ? lagosTimeToday(rec.collected_time) : new Date();
+  const u = rec.quantity > 0 ? urgency({ category: rec.category, qty: rec.quantity, collected_at: collected ?? new Date() }) : null;
 
   return (
-    <div className="grid gap-x-12 gap-y-9 md:grid-cols-2">
-      <section className="flex flex-col gap-4">
-        <h2 className="h2">Message</h2>
-        <label className="label">Paste the collection point’s message
-          <textarea id="msg" className="input min-h-28" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. 200 packs of fried rice at the cafeteria, 9pm, hot" />
-        </label>
-        <div>
-          <p className="mb-2 text-[13px] text-muted">Try an example</p>
-          <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((x) => (
-              <button key={x} type="button" className="chip text-left" onClick={() => setMessage(x)}>
-                {x.length > 46 ? x.slice(0, 46) + "…" : x}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <button className="btn-dark" onClick={parse} disabled={parsing || !message.trim()} aria-busy={parsing}>
-            {parsing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <MessageSquareText className="size-4" aria-hidden />}
-            {parsing ? "Reading message…" : "Parse message"}
-          </button>
-          <button className="link" type="button" onClick={() => { setRec({ food: "", quantity: 0, collected_time: null, location: "Convocation Centre", condition: "", category: "cooked_meal", notes: "" }); setParsedBy("manual"); }}>
-            Enter manually
-          </button>
-        </div>
-        {error && <p role="alert" className="text-sm font-medium text-crit">{error}</p>}
-      </section>
-
-      <section className="flex flex-col gap-4" aria-live="polite">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="h2">Record</h2>
-          {rec && <Badge icon={by.icon}>{by.text}</Badge>}
-        </div>
-        {!rec ? (
-          <EmptyState icon={FileText}>Parse a message, or enter the food manually, to see the record and its urgency.</EmptyState>
-        ) : (
-          <>
-            {parsedBy !== "manual" && <p className="-mt-2 text-[13px] text-muted">Check the details before saving.</p>}
+    <div className="flex max-w-xl flex-col gap-4">
+      <h2 className="h2">Record</h2>
+      <>
             <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
               <label className="label sm:col-span-2">Food<input id="r-food" className="input" value={rec.food} onChange={(e) => edit("food", e.target.value)} /></label>
-              <label className="label">Portions<input id="r-qty" className="input font-mono" type="number" min={1} value={rec.quantity || ""} onChange={(e) => edit("quantity", Number(e.target.value))} /></label>
+              <label className="label">Number of boxes / cartons<input id="r-qty" className="input font-mono" type="number" min={1} value={rec.quantity || ""} onChange={(e) => edit("quantity", Number(e.target.value))} /></label>
               <label className="label">Collected at<input id="r-time" className="input font-mono" type="time" value={rec.collected_time ?? ""} onChange={(e) => edit("collected_time", e.target.value || null)} /></label>
               <label className="label">Type
                 <select id="r-cat" className="input" value={rec.category} onChange={(e) => edit("category", e.target.value as Category)}>
@@ -161,9 +82,7 @@ export function IntakeBox({ hubs }: { hubs: Pick<CollectionPoint, "id" | "name">
                 <X className="size-4" aria-hidden /> Cancel
               </button>
             </div>
-          </>
-        )}
-      </section>
+      </>
     </div>
   );
 }
