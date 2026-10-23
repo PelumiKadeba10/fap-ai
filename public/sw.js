@@ -15,8 +15,8 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // The collection page: network first, saved copy when offline. Only the plain page is saved (no "Sent" banner or error).
-  if (req.mode === "navigate" && /^\/c\/[a-f0-9]{32}\/?$/.test(url.pathname)) {
+  // The collection and bus pages: network first, saved copy when offline. Only the plain page is saved (no "Sent" banner or error).
+  if (req.mode === "navigate" && /^\/[cb]\/[a-f0-9]{32}\/?$/.test(url.pathname)) {
     const key = url.origin + url.pathname.replace(/\/$/, "");
     e.respondWith(
       fetch(req)

@@ -5,8 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { fmtTime } from "@/lib/format";
 import { PLEDGE_STATUS, byPickupTime, isLate } from "@/lib/pledges";
 import type { Pledge } from "@/lib/types";
-import { SubmitButton } from "@/components/submit-button";
-import { pickupAction } from "./actions";
+import { PickupButtons, PickupStatus } from "./pickup-actions";
 import { ReportForm } from "./report-form";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +70,8 @@ export default async function CollectionPage({ params, searchParams }: { params:
         </Link>
       </nav>
 
+      <PickupStatus token={token} banner={pickupsTab} />
+
       {pickupsTab && <Pickups token={token} pledges={pledges} done={done} />}
 
       {!pickupsTab && banner && (
@@ -117,7 +118,6 @@ export default async function CollectionPage({ params, searchParams }: { params:
 }
 
 const DONE: Record<string, string> = { on_the_way: "Marked: on your way.", picked_up: "Saved. The coordinator will check the food.", no_food: "Marked: no food." };
-const BTN = "min-h-16 w-full rounded-xl px-4 py-4 text-xl font-semibold active:opacity-80";
 
 /** This collection point's pledged tents by pick-up time, with the three buttons. */
 function Pickups({ token, pledges, done }: { token: string; pledges: Pledge[]; done?: string }) {
@@ -156,28 +156,7 @@ function Pickups({ token, pledges, done }: { token: string; pledges: Pledge[]; d
                   <span className="min-w-0"><span className="block text-sm text-[#4a525c]">Tap to call{p.contact_name ? " " + p.contact_name : ""}</span><span className="block font-mono text-lg font-semibold break-all">{p.contact_phone}</span></span>
                 </a>
               )}
-              {open && (
-                <div className="mt-3 flex flex-col gap-3">
-                  {p.status === "pledged" && (
-                    <form action={pickupAction}>
-                      <input type="hidden" name="token" value={token} /><input type="hidden" name="pledge" value={p.id} /><input type="hidden" name="intent" value="on_the_way" />
-                      <SubmitButton className={`${BTN} border-2 border-ink bg-white text-ink`} pendingText="Sending…">On my way</SubmitButton>
-                    </form>
-                  )}
-                  <form action={pickupAction} className="flex flex-col gap-2 rounded-xl border border-[#dde2e7] p-3">
-                    <input type="hidden" name="token" value={token} /><input type="hidden" name="pledge" value={p.id} /><input type="hidden" name="intent" value="picked_up" />
-                    <label className="text-base font-semibold" htmlFor={"packs-" + p.id}>Packs picked up</label>
-                    <input id={"packs-" + p.id} name="packs" type="number" inputMode="numeric" min={1} required defaultValue={p.pledged_packs ?? undefined} className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-xl text-ink" />
-                    <label className="text-base font-semibold" htmlFor={"note-" + p.id}>Note <span className="font-normal text-[#4a525c]">(optional)</span></label>
-                    <input id={"note-" + p.id} name="note" maxLength={120} className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-lg text-ink" />
-                    <SubmitButton className={`${BTN} bg-ink text-white`} pendingText="Saving…">Picked up</SubmitButton>
-                  </form>
-                  <form action={pickupAction}>
-                    <input type="hidden" name="token" value={token} /><input type="hidden" name="pledge" value={p.id} /><input type="hidden" name="intent" value="no_food" />
-                    <SubmitButton className="min-h-14 w-full rounded-xl border-2 border-crit bg-white px-4 py-3 text-lg font-semibold text-crit active:opacity-80" pendingText="Sending…">No food</SubmitButton>
-                  </form>
-                </div>
-              )}
+              {open && <PickupButtons token={token} pledge={{ id: p.id, tent: p.tent_name, status: p.status as "pledged" | "on_the_way", packs: p.pledged_packs }} />}
             </li>
           );
         })}

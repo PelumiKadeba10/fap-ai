@@ -26,6 +26,18 @@ export async function findCurrentTrip(db: SupabaseClient, link: BusLinkRow): Pro
   return (data as unknown as CurrentTrip | null) ?? null;
 }
 
+/** A specific trip of this bus in this event (any status), or null. */
+export async function findTripForBus(db: SupabaseClient, link: BusLinkRow, tripId: string): Promise<CurrentTrip | null> {
+  const { data } = await db
+    .from("trips")
+    .select("id, status, trip_no, departed_at, collection_points(name)")
+    .eq("id", tripId)
+    .eq("event_id", link.event_id)
+    .eq("bus_id", link.bus_id)
+    .maybeSingle();
+  return (data as unknown as CurrentTrip | null) ?? null;
+}
+
 export type EarlierTrip = { id: string; trip_no: number | null; returned_at: string | null; hub: string; packs: number; stops: number };
 
 /** The bus's finished trips in that event, newest first, with what each carried. */

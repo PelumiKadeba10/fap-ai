@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 export function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
   const router = useRouter();
   useEffect(() => {
-    const t = setInterval(() => router.refresh(), seconds * 1000);
+    const t = setInterval(() => { if (navigator.onLine) router.refresh(); }, seconds * 1000);
     return () => clearInterval(t);
   }, [router, seconds]);
   return null;

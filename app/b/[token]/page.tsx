@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2, MapPin, Phone, RefreshCw, Timer } from "lucide-react";
+import { AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findBusLink, findCurrentTrip, findEarlierTrips, type EarlierTrip } from "@/lib/bus-trip";
-import { tripPhase } from "@/lib/bus-state";
 import { fmtPacks } from "@/lib/cartons";
-import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
-import { ChevronRight } from "lucide-react";
-import { ATTENTION_MIN } from "@/lib/status";
-import { TRIP_STATUS, groupStops, stopStatus } from "@/lib/trip-status";
+import { fmtTime } from "@/lib/format";
+import { groupStops, stopStatus } from "@/lib/trip-status";
 import type { DeliveryStatus } from "@/lib/types";
-import { SubmitButton } from "@/components/submit-button";
-import { busAction } from "./actions";
+import { OfflineSetup } from "@/components/offline-setup";
 import { AutoRefresh } from "./auto-refresh";
+import { BusTrip, type StopView } from "./bus-trip";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "My trip · FAP AI", robots: { index: false } };
@@ -56,6 +53,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
     return (
       <Shell>
         <AutoRefresh />
+        <OfflineSetup />
         <div>
           <p className="text-base text-[#4a525c]">{busName}{who?.events?.name ? " · " + who.events.name : ""}</p>
           <h1 className="mt-1 text-[28px] leading-tight font-semibold">Free · no trip right now.</h1>
@@ -90,116 +88,18 @@ export default async function BusPage({ params, searchParams }: { params: Promis
     safeUntil: s.items.reduce((m, i) => (i.safe_until < m ? i.safe_until : m), s.items[0].safe_until),
     site: s.items[0].sites,
   }));
-  const total = stops.reduce((t, s) => t + s.items.reduce((n, i) => n + i.qty, 0), 0);
-  const doneCount = stops.filter((s) => s.status === "delivered").length;
-  const next = stops.find((s) => s.status !== "delivered");
-  const onRoad = trip.status === "departed";
-  const phase = tripPhase(trip.status, stops.flatMap((s) => s.items.map((i) => i.status)));
-  const statusLabel = phase === "returning" ? "Returning" : TRIP_STATUS[trip.status].label;
+  const view: StopView[] = stops.map((s) => ({
+    order: s.order, status: s.status, safeUntil: s.safeUntil, site: s.site,
+    items: s.items.map((i) => ({ id: i.id, qty: i.qty, food: i.batches?.food ?? "" })),
+  }));
   const hub = trip.collection_points?.name ?? "the collection point";
 
   return (
     <Shell>
-      <div>
-        <p className="text-base text-[#4a525c]">{busName} · {statusLabel}</p>
-        {trip.trip_no && <p className="mt-1 text-lg font-semibold">Trip <span className="font-mono">{trip.trip_no}</span> of today</p>}
-        <h1 className="mt-1 text-[28px] leading-tight font-semibold break-words"><span className="font-mono">{fmtPacks(total, perCarton)}</span> from {hub}</h1>
-        <p className="mt-2 text-base text-[#4a525c]">{stops.length} {stops.length === 1 ? "stop" : "stops"}{trip.departed_at && <> · left at <span className="font-mono">{fmtTime(trip.departed_at)}</span></>}</p>
-      </div>
-
-      {alert}
-
-      {onRoad && stops.length > 0 && (
-        <p className="text-lg font-semibold" aria-live="polite">
-          {next ? <>Stop <span className="font-mono">{doneCount + 1}</span> of <span className="font-mono">{stops.length}</span></> : "All stops done"}
-        </p>
-      )}
-
-      {(trip.status === "planned" || trip.status === "loading") && (
-        <form action={busAction}>
-          <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="trip" value={trip.id} />
-          <input type="hidden" name="intent" value="depart" />
-          <p className="mb-3 text-base text-[#4a525c]">{trip.status === "loading" ? "Loading at " + hub + "." : "Wait at " + hub + " while the food is loaded."} Tap when the bus is full and moving.</p>
-          <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Loaded, leaving now</SubmitButton>
-        </form>
-      )}
-
-      <ol className="flex flex-col gap-4">
-        {stops.map((s) => {
-          const isNext = onRoad && next?.order === s.order;
-          const done = s.status === "delivered";
-          const left = minutesBetween(new Date(), s.safeUntil);
-          const urgent = !done && left < ATTENTION_MIN;
-          return (
-            <li key={s.order} aria-current={isNext ? "step" : undefined} className={`rounded-2xl p-4 ${isNext ? "border-[3px] border-ink" : "border border-[#dde2e7]"} ${done ? "bg-soft" : "bg-white"}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">{isNext ? "Next stop" : "Stop " + s.order}</p>
-                  <p className="mt-0.5 flex items-start gap-1.5 text-2xl leading-tight font-semibold break-words">
-                    <MapPin className="mt-1 size-6 shrink-0" aria-hidden />{s.site?.name}
-                  </p>
-                </div>
-                {done && <span className="flex shrink-0 items-center gap-1 text-base font-semibold text-ok"><CheckCircle2 className="size-5" aria-hidden />Delivered</span>}
-                {s.status === "delayed" && <span className="flex shrink-0 items-center gap-1 text-base font-semibold text-warn"><AlertTriangle className="size-5" aria-hidden />Problem</span>}
-              </div>
-
-              <ul className="mt-2 text-lg">
-                {s.items.map((i) => <li key={i.id}><span className="font-mono font-semibold">{fmtPacks(i.qty, perCarton)}</span> {i.batches?.food}</li>)}
-              </ul>
-
-              {!done && (
-                <p className={`mt-2 flex items-center gap-2 text-base ${urgent ? "font-semibold text-crit" : "text-[#4a525c]"}`}>
-                  {urgent ? <AlertTriangle className="size-5 shrink-0" aria-hidden /> : <Timer className="size-5 shrink-0" aria-hidden />}
-                  Safe until <b className="font-mono">{fmtTime(s.safeUntil)}</b> · {left > 0 ? fmtDur(left) + " left" : fmtDur(-left) + " late"}
-                </p>
-              )}
-
-              {!done && s.site?.contact_phone && (
-                <a href={"tel:" + s.site.contact_phone} className="mt-3 flex min-h-14 items-center gap-3 rounded-xl border-2 border-ink bg-white px-4 py-2 text-ink active:bg-soft">
-                  <Phone className="size-6 shrink-0" aria-hidden />
-                  <span className="min-w-0">
-                    <span className="block text-sm text-[#4a525c]">Tap to call{s.site.contact_name ? " " + s.site.contact_name : ""}</span>
-                    <span className="block font-mono text-lg font-semibold">{s.site.contact_phone}</span>
-                  </span>
-                </a>
-              )}
-
-              {onRoad && !done && (
-                <div className="mt-3 flex flex-col gap-3">
-                  <form action={busAction}>
-                    <input type="hidden" name="token" value={token} />
-                    <input type="hidden" name="trip" value={trip.id} />
-                    <input type="hidden" name="intent" value="delivered" />
-                    <input type="hidden" name="stop" value={s.order} />
-                    <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Delivered here</SubmitButton>
-                  </form>
-                  {s.status !== "delayed" && (
-                    <form action={busAction}>
-                      <input type="hidden" name="token" value={token} />
-                      <input type="hidden" name="trip" value={trip.id} />
-                      <input type="hidden" name="intent" value="problem" />
-                      <input type="hidden" name="stop" value={s.order} />
-                      <SubmitButton className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-4 py-3 text-lg font-semibold text-ink active:opacity-80" pendingText="Sending…">Problem at this stop</SubmitButton>
-                    </form>
-                  )}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {phase === "returning" && <p className="text-lg font-semibold" aria-live="polite">All stops done. Drive back to {hub}.</p>}
-      {onRoad && !next && stops.length > 0 && (
-        <form action={busAction}>
-          <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="trip" value={trip.id} />
-          <input type="hidden" name="intent" value="return" />
-          <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Back at collection point</SubmitButton>
-        </form>
-      )}
-      {onRoad && next && <p className="text-sm text-[#4a525c]">“Back at collection point” appears once every stop is delivered.</p>}
+      <BusTrip
+        token={token} busName={busName} perCarton={perCarton} nowIso={new Date().toISOString()} alert={alert} stops={view}
+        trip={{ id: trip.id, status: trip.status, tripNo: trip.trip_no, departedAt: trip.departed_at, hub }}
+      />
 
       <EarlierTrips trips={earlier} perCarton={perCarton} />
 
