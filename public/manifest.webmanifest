@@ -1,0 +1,8 @@
+{
+  "name": "FAP AI: report food",
+  "short_name": "FAP AI",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "icons": [{ "src": "/fap-logo.png", "sizes": "430x312", "type": "image/png" }]
+}

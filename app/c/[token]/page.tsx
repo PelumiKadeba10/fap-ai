@@ -6,11 +6,11 @@ import { fmtTime } from "@/lib/format";
 import { PLEDGE_STATUS, byPickupTime, isLate } from "@/lib/pledges";
 import type { Pledge } from "@/lib/types";
 import { SubmitButton } from "@/components/submit-button";
-import { pickupAction, submitFood } from "./actions";
-import { PhotoInput } from "./photo-input";
+import { pickupAction } from "./actions";
+import { ReportForm } from "./report-form";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Report food · FAP AI", robots: { index: false } };
+export const metadata: Metadata = { title: "Report food · FAP AI", robots: { index: false }, manifest: "/manifest.webmanifest" };
 
 type Point = { id: string; name: string; location_note: string | null; active: boolean; events: { name: string } | null };
 type Sub = { id: string; food: string; qty: number; notes: string | null; review_status: "pending" | "approved"; photo_path: string | null; created_at: string };
@@ -89,23 +89,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
       )}
 
       {!pickupsTab && (<>
-      <form action={submitFood} className="flex flex-col gap-3">
-        <input type="hidden" name="token" value={token} />
-        <label htmlFor="food" className="text-lg font-semibold">What did you collect?</label>
-        <input
-          id="food" name="food" required maxLength={80}
-          placeholder="e.g. Jollof rice and chicken"
-          className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-lg text-ink placeholder:text-[#6b7480]"
-        />
-        <label htmlFor="count" className="text-lg font-semibold">Number of boxes / cartons</label>
-        <input
-          id="count" name="count" type="number" inputMode="numeric" required min={1} max={100000} step={1}
-          placeholder="e.g. 20"
-          className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 font-mono text-lg text-ink placeholder:text-[#6b7480]"
-        />
-        <PhotoInput />
-        <SubmitButton className="min-h-16 w-full rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80" pendingText="Sending…">Send</SubmitButton>
-      </form>
+      <ReportForm token={token} />
 
       <section aria-labelledby="recent">
         <h2 id="recent" className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">Your last sends</h2>
