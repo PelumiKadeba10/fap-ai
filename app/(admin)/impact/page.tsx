@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getEventSites, getPhotoUrls, getTrips, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getEventSites, getFoodCountSummary, getPhotoUrls, getTrips, sumBy } from "@/lib/data";
+import { FoodCountSummary } from "@/components/food-count-summary";
 import { predict } from "@/lib/predict";
 import { fmtDur, fmtTime, minutesBetween, n0 } from "@/lib/format";
 import { siteNeed } from "@/lib/match";
@@ -14,8 +15,8 @@ const TECH_BUDGET = 50_000; // ₦, platform only
 export default async function ImpactPage() {
   const event = await getActiveEvent();
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
-  const [batches, deliveries, sites, hubs, trips, buses] = await Promise.all([
-    getBatches(event.id, "approved"), getDeliveries(event.id), getEventSites(event.id), getCollectionPoints(event.id), getTrips(event.id), getBuses(event.id),
+  const [batches, deliveries, sites, hubs, trips, buses, countSummary] = await Promise.all([
+    getBatches(event.id, "approved"), getDeliveries(event.id), getEventSites(event.id), getCollectionPoints(event.id), getTrips(event.id), getBuses(event.id), getFoodCountSummary(event.id),
   ]);
 
   const recovered = batches.reduce((t, b) => t + b.qty, 0);
@@ -44,6 +45,7 @@ export default async function ImpactPage() {
   return (
     <>
       <PageHeader title={`Impact · ${event.name}`} description={summary} actions={<PrintButton />} />
+      <FoodCountSummary rows={countSummary} names={Object.fromEntries(hubs.map((h) => [h.id, h.name]))} />
 
       <div className="grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-4">
         <Stat label="Portions delivered" value={n0(deliveredQty)} hint={`of ${n0(recovered)} recovered · baseline 350 at Matriculation`} />

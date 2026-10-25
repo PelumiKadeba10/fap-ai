@@ -3,11 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyStopStatus, departTrip, returnTrip } from "./apply-status";
 import { findBusLink, findCurrentTrip, findTripForBus } from "./bus-trip";
 import { tapTime } from "./tap-time";
+import { saveLoadedPacks } from "./count-actions";
 
 const NOTE = "Sent by bus lead";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type BusTap = { token: string; intent: string; trip?: string; stop?: number; at?: string };
+export type BusTap = { token: string; intent: string; trip?: string; stop?: number; loaded?: number; at?: string };
 export type BusResult = { ok: true } | { ok: false; error: string; notFound?: boolean };
 
 /**
@@ -26,6 +27,9 @@ export async function applyBusTap(db: SupabaseClient, t: BusTap): Promise<BusRes
   const at = tapTime(t.at);
   if (t.intent === "depart") {
     if (trip.status === "departed") return { ok: true };
+    if (!Number.isInteger(t.loaded)) return { ok: false, error: "Enter the packs loaded before leaving." };
+    const loaded = await saveLoadedPacks(db, t.token, trip.id, t.loaded!, at);
+    if (!loaded.ok) return loaded;
     const r = await departTrip(db, trip.id, NOTE, at);
     return r.ok ? { ok: true } : { ok: false, error: r.error };
   }

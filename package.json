@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/day-of-ops.test.ts tests/food-counts.test.ts tests/logic.test.ts tests/tap-time.test.ts tests/trips.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

@@ -13,6 +13,7 @@ export async function busAction(form: FormData) {
   if (!/^[a-f0-9]{32}$/.test(token)) redirect("/b/invalid");
   const r = await applyBusTap(createAdminClient(), {
     token, intent: String(form.get("intent") ?? ""), trip: String(form.get("trip") ?? ""), stop: Number(form.get("stop")),
+    loaded: Number(form.get("loaded")),
   });
   redirect(r.ok || r.notFound ? `/b/${token}` : `/b/${token}?e=${encodeURIComponent(r.error)}`);
 }

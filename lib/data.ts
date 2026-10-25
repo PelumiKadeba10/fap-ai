@@ -5,6 +5,7 @@ import { foodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
 import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, Pledge, ReviewStatus, Site, Trip, Volunteer } from "./types";
+import { foodCountSummary, type FoodCountRow } from "./food-counts";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
 
@@ -171,4 +172,16 @@ export async function getPledges(eventId: string): Promise<Pledge[]> {
   const { data, error } = await supabase.from("pledges").select("*").eq("event_id", eventId).order("pickup_from", { nullsFirst: false }).order("created_at");
   if (error) throw error;
   return (data ?? []) as Pledge[];
+}
+
+export async function getFoodCountSummary(eventId: string): Promise<FoodCountRow[]> {
+  const supabase = await createClient();
+  const [b, e, t, d, ids] = await Promise.all([
+    supabase.from("batches").select("qty, collection_point_id").eq("event_id", eventId),
+    supabase.from("edible_counts").select("collection_point_id, edible_packs").eq("event_id", eventId),
+    supabase.from("trips").select("hub_id, loaded_packs").eq("event_id", eventId),
+    supabase.from("deliveries").select("batch_id, qty, status").eq("event_id", eventId),
+    supabase.from("batches").select("id, collection_point_id").eq("event_id", eventId),
+  ]);
+  return foodCountSummary(b.data ?? [], e.data ?? [], t.data ?? [], d.data ?? [], ids.data ?? []);
 }

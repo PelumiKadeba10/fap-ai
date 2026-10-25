@@ -8,6 +8,7 @@ const Body = z.object({
   intent: z.string().max(20),
   trip: z.string().max(40).optional(),
   stop: z.coerce.number().int().optional(),
+  loaded: z.coerce.number().int().optional(),
   at: z.string().max(40).optional(),
 });
 

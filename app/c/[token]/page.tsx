@@ -7,11 +7,12 @@ import { PLEDGE_STATUS, byPickupTime, isLate } from "@/lib/pledges";
 import type { Pledge } from "@/lib/types";
 import { PickupButtons, PickupStatus } from "./pickup-actions";
 import { ReportForm } from "./report-form";
+import { EdibleForm } from "./edible-form";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Report food · FAP AI", robots: { index: false }, manifest: "/manifest.webmanifest" };
 
-type Point = { id: string; name: string; location_note: string | null; active: boolean; events: { name: string } | null };
+type Point = { id: string; event_id: string; name: string; location_note: string | null; active: boolean; events: { name: string } | null };
 type Sub = { id: string; food: string; qty: number; notes: string | null; review_status: "pending" | "approved"; photo_path: string | null; created_at: string };
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -21,7 +22,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const { e, ok, photo, tab, done } = await searchParams;
   const db = createAdminClient();
   const { data: cp } = /^[a-f0-9]{32}$/.test(token)
-    ? await db.from("collection_points").select("id, name, location_note, active, events(name)").eq("token", token).maybeSingle<Point>()
+    ? await db.from("collection_points").select("id, event_id, name, location_note, active, events(name)").eq("token", token).maybeSingle<Point>()
     : { data: null };
 
   if (!cp) {
@@ -46,12 +47,15 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const pledges = byPickupTime(pledgeRows ?? []);
   const openCount = pledges.filter((p) => p.status === "pledged" || p.status === "on_the_way").length;
 
-  const [{ data: subs }, sent] = await Promise.all([
+  const [{ data: subs }, sent, edibleRow, collectedRows] = await Promise.all([
     db.from("batches").select("id, food, qty, notes, review_status, photo_path, created_at").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).limit(5).returns<Sub[]>(),
     ok && UUID.test(ok)
       ? db.from("batches").select("id, food, qty, notes, review_status, photo_path, created_at").eq("id", ok).eq("collection_point_id", cp.id).maybeSingle<Sub>()
       : Promise.resolve({ data: null }),
+    db.from("edible_counts").select("edible_packs, recorded_at").eq("event_id", cp.event_id).eq("collection_point_id", cp.id).maybeSingle<{ edible_packs: number; recorded_at: string }>(),
+    db.from("batches").select("qty").eq("collection_point_id", cp.id),
   ]);
+  const collected = (collectedRows.data ?? []).reduce((n, b) => n + b.qty, 0);
   const banner = sent.data;
   const unclear = banner?.notes === "Needs a quantity";
 
@@ -91,6 +95,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
 
       {!pickupsTab && (<>
       <ReportForm token={token} />
+      <EdibleForm token={token} collected={collected} current={edibleRow.data?.edible_packs ?? null} />
 
       <section aria-labelledby="recent">
         <h2 id="recent" className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">Your last sends</h2>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { saveFoodReport } from "@/lib/submit-food";
 import { applyPickupTap } from "@/lib/pickup-act";
+import { saveEdibleCount } from "@/lib/count-actions";
 
 const back = (token: string, e: string): never => redirect(`/c/${token}?e=${encodeURIComponent(e)}`);
 
@@ -16,6 +17,14 @@ export async function submitFood(form: FormData) {
   const r = await saveFoodReport(form);
   if (!r.ok) return r.status === 404 ? redirect(`/c/${token}`) : back(token, r.error);
   redirect(`/c/${token}?ok=${r.id}${r.photoSkipped ? "&photo=skipped" : ""}`);
+}
+
+export async function saveEdible(form: FormData) {
+  const token = String(form.get("token") ?? "");
+  if (!/^[a-f0-9]{32}$/.test(token)) redirect("/c/invalid");
+  const r = await saveEdibleCount(createAdminClient(), token, Number(form.get("edible")));
+  if (!r.ok) back(token, r.error);
+  redirect(`/c/${token}`);
 }
 
 const backPickups = (token: string, q: string): never => redirect(`/c/${token}?tab=pickups&${q}`);

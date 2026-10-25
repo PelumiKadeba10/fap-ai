@@ -38,6 +38,7 @@ export function LiveBoard({ eventId, trips, buses, busLinks, hubs, deliveries, b
       .channel(`live-${eventId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "deliveries", filter: `event_id=eq.${eventId}` }, () => router.refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "trips", filter: `event_id=eq.${eventId}` }, () => router.refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "edible_counts", filter: `event_id=eq.${eventId}` }, () => router.refresh())
       .subscribe();
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => { clearInterval(t); supabase.removeChannel(ch); };

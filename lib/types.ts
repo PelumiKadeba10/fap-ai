@@ -139,6 +139,7 @@ export interface Trip {
   created_at: string;
   departed_at: string | null;
   returned_at: string | null;
+  loaded_packs: number | null;
 }
 
 /** The one link a bus lead keeps open for the whole event. */

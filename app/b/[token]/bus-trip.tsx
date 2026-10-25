@@ -105,7 +105,7 @@ export function BusTrip({ token, trip, stops, perCarton, busName, nowIso, alert 
       )}
 
       {(tripStatus === "planned" || tripStatus === "loading") && (
-        <TapForm token={token} trip={trip.id} intent="depart" label="Left the collection point" className={BTN_DARK} button="Loaded, leaving now">
+        <TapForm token={token} trip={trip.id} intent="depart" loadedDefault={total} label="Left the collection point" className={BTN_DARK} button="Loaded, leaving now">
           <p className="mb-3 text-base text-[#4a525c]">{tripStatus === "loading" ? "Loading at " + trip.hub + "." : "Wait at " + trip.hub + " while the food is loaded."} Tap when the bus is full and moving.</p>
         </TapForm>
       )}
@@ -177,20 +177,24 @@ export function BusTrip({ token, trip, stops, perCarton, busName, nowIso, alert 
 }
 
 /** One bus button. Without JavaScript it is a plain form post; with it, the tap is saved on the phone and sent in the background. */
-function TapForm({ token, trip, intent, stop, label, button, className, children }: {
-  token: string; trip: string; intent: string; stop?: number; label: string; button: string; className: string; children?: React.ReactNode;
+function TapForm({ token, trip, intent, stop, loadedDefault, label, button, className, children }: {
+  token: string; trip: string; intent: string; stop?: number; loadedDefault?: number; label: string; button: string; className: string; children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(String(loadedDefault ?? ""));
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
     try {
+      const loadedPacks = loadedDefault == null ? null : Number(loaded);
+      if (loadedDefault != null && (loadedPacks == null || !Number.isInteger(loadedPacks) || loadedPacks < 0)) { setBusy(false); return; }
+      if (loadedDefault != null && loadedPacks != null && loadedPacks < loadedDefault && !window.confirm(`You entered ${loadedPacks} packs, below the planned ${loadedDefault}. Leave anyway?`)) { setBusy(false); return; }
       await enqueueTap({
         id: newTapId(), scope: token, endpoint: "/api/b/act", at: new Date().toISOString(), label,
-        payload: { token, intent, trip, ...(stop != null ? { stop } : {}) },
+        payload: { token, intent, trip, ...(stop != null ? { stop } : {}), ...(loadedPacks != null ? { loaded: loadedPacks } : {}) },
       });
       if (await flushTaps(token)) router.refresh();
     } catch {
@@ -206,6 +210,7 @@ function TapForm({ token, trip, intent, stop, label, button, className, children
       <input type="hidden" name="trip" value={trip} />
       <input type="hidden" name="intent" value={intent} />
       {stop != null && <input type="hidden" name="stop" value={stop} />}
+      {loadedDefault != null && <label className="mb-3 block text-left text-lg font-semibold">Packs loaded<input name="loaded" type="number" inputMode="numeric" min={0} required value={loaded} onChange={(e) => setLoaded(e.target.value)} className="mt-2 min-h-14 w-full rounded-xl border-2 border-ink px-3 font-mono text-lg text-ink" /><span className="mt-1 block text-sm font-normal text-[#4a525c]">Planned: {loadedDefault}. A lower number needs confirmation.</span></label>}
       {children}
       <button disabled={busy} aria-busy={busy} className={`${className} inline-flex items-center justify-center gap-2`}>
         {busy && <Spinner />}{busy ? "Sending…" : button}
