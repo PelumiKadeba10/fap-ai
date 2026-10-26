@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, Copy, MapPinned, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, MapPinned, Plus, Send, Trash2 } from "lucide-react";
 import type { CollectionPoint } from "@/lib/types";
 import { deleteCollectionPoint, saveCollectionPoint, setCollectionPointActive } from "../actions";
 import { EmptyState, Pill, SectionCard, cardTable } from "../ui";
@@ -24,10 +24,9 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
 
   const reportLink = (p: CollectionPoint) => `${origin}/r/${p.token}`;
   const intakeLink = (p: CollectionPoint) => `${origin}/i/${p.intake_token}`;
-  function whatsapp(p: CollectionPoint) {
-    const text = `FAP: report the food collected at ${p.name} here. Type what you collected and tap Send: ${reportLink(p)}`;
-    const phone = (p.lead_phone ?? "").replace(/\D/g, "").replace(/^0/, "234");
-    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  function telegram(p: CollectionPoint) {
+    const text = `FAP: report the food collected at ${p.name} here. Type what you collected and tap Send.`;
+    return `https://t.me/share/url?url=${encodeURIComponent(reportLink(p))}&text=${encodeURIComponent(text)}`;
   }
   async function copy(p: CollectionPoint, kind: "report" | "intake") {
     try { await navigator.clipboard.writeText(kind === "report" ? reportLink(p) : intakeLink(p)); setCopied(`${p.id}:${kind}`); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
@@ -54,7 +53,7 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
                       {copied === `${p.id}:intake` ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
                       {copied === `${p.id}:intake` ? "Copied" : "Intake link"}
                     </button>
-                    <a className={ACT} href={whatsapp(p)} target="_blank" rel="noreferrer"><MessageCircle className="size-4" aria-hidden />WhatsApp</a>
+                    <a className={ACT} href={telegram(p)} target="_blank" rel="noreferrer"><Send className="size-4" aria-hidden />Telegram</a>
                   </div>
                 ) : <Pill tone="muted">Switched off</Pill>}
               />

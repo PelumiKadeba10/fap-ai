@@ -114,7 +114,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busesOut, tripNumbers
                 <Soup className="mt-0.5 size-4 shrink-0" aria-hidden />
                 <span>New food waiting: <span className="font-mono">{n0(waiting.portions)}</span> portions in {waiting.batches} {waiting.batches === 1 ? "batch" : "batches"}. Plan trips to send it out.</span>
               </p>
-              <button className="btn-dark" onClick={run} disabled={pending || allBusy}><Play className="size-4" aria-hidden />{plan ? "Re-plan trips" : "Plan trips"}</button>
+              <button className="btn-dark" onClick={run} disabled={pending || allBusy} aria-busy={pending && !confirming}>{pending && !confirming ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}{pending && !confirming ? "Planning…" : plan ? "Re-plan trips" : "Plan trips"}</button>
             </div>
           )}
           {pendingCount > 0 && (
@@ -176,9 +176,9 @@ export function TripPlanner({ batches, sites, hubs, buses, busesOut, tripNumbers
               <p className="text-sm font-medium text-warn" role="status">{plan.waitingTrips} more {plan.waitingTrips === 1 ? "trip" : "trips"} of food will go when a bus is free. The most urgent food is planned first.</p>
             )}
             <div className="flex flex-wrap items-center gap-3">
-              <button className={plan ? "btn-line" : "btn-dark"} onClick={run} disabled={!available || pending || allBusy}>
-                {plan ? <RotateCw className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
-                {plan ? "Re-plan trips" : "Plan trips"}
+              <button className={plan ? "btn-line" : "btn-dark"} onClick={run} disabled={!available || pending || allBusy} aria-busy={pending && !confirming}>
+                {pending && !confirming ? <Loader2 className="size-4 animate-spin" aria-hidden /> : plan ? <RotateCw className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
+                {pending && !confirming ? "Planning…" : plan ? "Re-plan trips" : "Plan trips"}
               </button>
               {plan && count > 0 && !confirming && (
                 <button className="btn-dark" onClick={() => setConfirming(true)} disabled={pending}>
