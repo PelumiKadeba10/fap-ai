@@ -10,6 +10,7 @@ export async function findBusLink(db: SupabaseClient, token: string): Promise<Bu
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
   const { data, error } = await db.from("bus_links").select("id, event_id, bus_id").eq("token", token).maybeSingle();
   if (error) console.error("[bus-link] token lookup failed", { tokenSuffix: token.slice(-6), code: error.code, message: error.message, details: error.details, hint: error.hint });
+  else if (!data) console.warn("[bus-link] token not found", { tokenSuffix: token.slice(-6) });
   return (data as BusLinkRow | null) ?? null;
 }
 
