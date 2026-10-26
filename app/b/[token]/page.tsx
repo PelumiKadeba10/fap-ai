@@ -8,6 +8,8 @@ import { groupStops, stopStatus } from "@/lib/trip-status";
 import type { DeliveryStatus } from "@/lib/types";
 import { OfflineSetup } from "@/components/offline-setup";
 import { FieldChat } from "@/components/field-chat";
+import { FieldTabs } from "@/components/field-tabs";
+import { unreadFromAdmin } from "@/lib/messages";
 import { AutoRefresh } from "./auto-refresh";
 import { BusTrip, type StopView } from "./bus-trip";
 
@@ -21,9 +23,10 @@ type Item = {
 };
 
 /** One link per bus per event: shows the bus's current trip, or waits for the next one. */
-export default async function BusPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ e?: string }> }) {
+export default async function BusPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ e?: string; tab?: string }> }) {
   const { token } = await params;
-  const { e } = await searchParams;
+  const { e, tab } = await searchParams;
+  const messagesTab = tab === "messages";
   const db = createAdminClient();
   const link = await findBusLink(db, token);
 
@@ -43,6 +46,20 @@ export default async function BusPage({ params, searchParams }: { params: Promis
   ]);
   const perCarton = who?.events?.packs_per_carton ?? null;
   const busName = who?.buses?.name ?? "Your bus";
+  const unread = messagesTab ? 0 : await unreadFromAdmin(db, "bus", token);
+  const tabs = <FieldTabs tabs={[{ href: `/b/${token}`, label: "My trip", on: !messagesTab }, { href: `/b/${token}?tab=messages`, label: "Messages", on: messagesTab, badge: unread }]} />;
+  if (messagesTab) {
+    return (
+      <Shell>
+        <div>
+          <p className="text-base text-[#4a525c]">{busName}{who?.events?.name ? " · " + who.events.name : ""}</p>
+          <h1 className="mt-1 text-[28px] leading-tight font-semibold">Messages</h1>
+        </div>
+        {tabs}
+        <FieldChat channel="bus" token={token} />
+      </Shell>
+    );
+  }
   const alert = e && (
     <p role="alert" className="flex items-start gap-2 rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit">
       <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />{e}
@@ -55,6 +72,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
       <Shell>
         <AutoRefresh />
         <OfflineSetup />
+        {tabs}
         <div>
           <p className="text-base text-[#4a525c]">{busName}{who?.events?.name ? " · " + who.events.name : ""}</p>
           <h1 className="mt-1 text-[28px] leading-tight font-semibold">Free · no trip right now.</h1>
@@ -72,7 +90,6 @@ export default async function BusPage({ params, searchParams }: { params: Promis
           </p>
         </section>
         <EarlierTrips trips={earlier} perCarton={perCarton} />
-        <FieldChat channel="bus" token={token} />
         {who?.events?.bus_ready_by && <p className="text-sm text-[#4a525c]">Bus at the collection point by <b className="font-mono">{fmtTime(who.events.bus_ready_by)}</b>.</p>}
       </Shell>
     );
@@ -98,14 +115,13 @@ export default async function BusPage({ params, searchParams }: { params: Promis
 
   return (
     <Shell>
+      {tabs}
       <BusTrip
         token={token} busName={busName} perCarton={perCarton} nowIso={new Date().toISOString()} alert={alert} stops={view}
         trip={{ id: trip.id, status: trip.status, tripNo: trip.trip_no, departedAt: trip.departed_at, hub }}
       />
 
       <EarlierTrips trips={earlier} perCarton={perCarton} />
-
-      <FieldChat channel="bus" token={token} />
 
       <p className="text-sm text-[#4a525c]">Keep this link for the whole night. Your next trip will appear on this page.</p>
     </Shell>

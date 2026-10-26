@@ -8,6 +8,8 @@ import { PickupList } from "@/app/c/[token]/pickup-list";
 import { PickupStatus } from "@/app/c/[token]/pickup-actions";
 import { DonationForm } from "@/app/c/[token]/donation-form";
 import { FieldChat } from "@/components/field-chat";
+import { FieldTabs } from "@/components/field-tabs";
+import { unreadFromAdmin } from "@/lib/messages";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Food intake record · FAP AI", robots: { index: false }, manifest: "/manifest.webmanifest" };
@@ -17,6 +19,7 @@ export default async function IntakeRecordPage({ params, searchParams }: { param
   const { token } = await params;
   const { tab, done, e } = await searchParams;
   const donatedTab = tab === "donated";
+  const messagesTab = tab === "messages";
   const db = createAdminClient();
   let cp: Point | null = null;
   if (/^[a-f0-9]{32}$/.test(token)) cp = (await db.from("collection_points").select("id, event_id, name, location_note, active, events!collection_points_event_id_fkey(name)").eq("intake_token", token).maybeSingle<Point>()).data;
@@ -27,13 +30,14 @@ export default async function IntakeRecordPage({ params, searchParams }: { param
     db.from("food_donations").select("*").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).returns<FoodDonation[]>(),
   ]);
   const pledges = byPickupTime(pledgeRows ?? []);
+  const unread = messagesTab ? 0 : await unreadFromAdmin(db, "intake", token);
   const openCount = pledges.filter((p) => p.status === "pledged" || p.status === "on_the_way").length;
   return <Shell>
     <div><p className="text-base text-[#4a525c]">{cp.events?.name}</p><h1 className="mt-1 text-[28px] leading-tight font-semibold">{cp.name}</h1>{cp.location_note && <p className="mt-1 text-base text-[#4a525c]">{cp.location_note}</p>}</div>
-    <nav aria-label="Sections" className="grid grid-cols-2 gap-2"><Link href={`/i/${token}`} aria-current={!donatedTab ? "page" : undefined} className={`flex min-h-14 items-center justify-center gap-1 rounded-xl border-2 border-ink px-2 text-center text-lg font-semibold ${!donatedTab ? "bg-ink text-white" : "bg-white text-ink"}`}>Pick-ups{openCount > 0 && <span className="rounded-full bg-orange px-2 py-0.5 font-mono text-sm text-white">{openCount}</span>}</Link><Link href={`/i/${token}?tab=donated`} aria-current={donatedTab ? "page" : undefined} className={`flex min-h-14 items-center justify-center rounded-xl border-2 border-ink px-2 text-center text-lg font-semibold ${donatedTab ? "bg-ink text-white" : "bg-white text-ink"}`}>Food donated</Link></nav>
-    {!donatedTab && <><PickupStatus token={token} banner /><PickupList token={token} pledges={pledges} done={done} /></>}
+    <FieldTabs tabs={[{ href: `/i/${token}`, label: "Pick-ups", on: !donatedTab && !messagesTab, badge: openCount }, { href: `/i/${token}?tab=donated`, label: "Food donated", on: donatedTab }, { href: `/i/${token}?tab=messages`, label: "Messages", on: messagesTab, badge: unread }]} />
+    {!donatedTab && !messagesTab && <><PickupStatus token={token} banner /><PickupList token={token} pledges={pledges} done={done} /></>}
     {donatedTab && <DonationForm token={token} total={(donations ?? []).reduce((n, d) => n + d.packs, 0)} />}
-    <FieldChat channel="intake" token={token} />
+    {messagesTab && <FieldChat channel="intake" token={token} />}
     {e && <p role="alert" className="flex items-start gap-2 rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit"><AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />{e}</p>}
   </Shell>;
 }

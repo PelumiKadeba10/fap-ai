@@ -2,11 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, Send } from "lucide-react";
 import { Spinner } from "@/components/spinner";
-import type { Channel, Message } from "@/lib/messages";
+import type { FieldChannel, Message } from "@/lib/messages";
 import { fmtTime } from "@/lib/format";
 
 /** Message box for the field pages (bus link, food intake link): talk to the coordinators at the admin panel. */
-export function FieldChat({ channel, token }: { channel: Channel; token: string }) {
+export function FieldChat({ channel, token }: { channel: FieldChannel; token: string }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);

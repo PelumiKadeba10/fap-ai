@@ -9,8 +9,12 @@ export type ThreadRef = { channel: Channel; threadId: string; eventId: string; l
 export const MAX_MESSAGE = 1000;
 export const isChannel = (v: unknown): v is Channel => v === "bus" || v === "intake";
 
-/** The thread behind a field link: a bus link (/b/token) or a collection point's food intake link (/i/token). */
-export async function resolveThread(db: SupabaseClient, channel: Channel, token: string): Promise<ThreadRef | null> {
+/** What a field link says it is: the batch submission link ("report") shares its collection point's thread with the food intake link. */
+export type FieldChannel = Channel | "report";
+export const isFieldChannel = (v: unknown): v is FieldChannel => isChannel(v) || v === "report";
+
+/** The thread behind a field link: a bus link (/b/token), or a collection point's food intake (/i/token) or batch submission (/r/token) link. */
+export async function resolveThread(db: SupabaseClient, channel: FieldChannel, token: string): Promise<ThreadRef | null> {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
   if (channel === "bus") {
     const link = await findBusLink(db, token);
@@ -18,8 +22,8 @@ export async function resolveThread(db: SupabaseClient, channel: Channel, token:
     const { data } = await db.from("buses").select("name").eq("id", link.bus_id).maybeSingle<{ name: string }>();
     return { channel, threadId: link.id, eventId: link.event_id, label: data?.name ?? "Bus" };
   }
-  const { data } = await db.from("collection_points").select("id, event_id, name, active").eq("intake_token", token).maybeSingle<{ id: string; event_id: string; name: string; active: boolean }>();
-  return data && data.active ? { channel, threadId: data.id, eventId: data.event_id, label: data.name } : null;
+  const { data } = await db.from("collection_points").select("id, event_id, name, active").eq(channel === "report" ? "token" : "intake_token", token).maybeSingle<{ id: string; event_id: string; name: string; active: boolean }>();
+  return data && data.active ? { channel: "intake" as const, threadId: data.id, eventId: data.event_id, label: data.name } : null;
 }
 
 export async function listThread(db: SupabaseClient, channel: Channel, threadId: string): Promise<Message[]> {
@@ -30,4 +34,12 @@ export async function listThread(db: SupabaseClient, channel: Channel, threadId:
 export function cleanBody(raw: unknown): string | null {
   const body = String(raw ?? "").trim();
   return body && body.length <= MAX_MESSAGE ? body : null;
+}
+
+/** How many coordinator messages the person on this link has not opened yet. */
+export async function unreadFromAdmin(db: SupabaseClient, channel: FieldChannel, token: string): Promise<number> {
+  const t = await resolveThread(db, channel, token);
+  if (!t) return 0;
+  const { count } = await db.from("messages").select("id", { count: "exact", head: true }).eq("channel", t.channel).eq("thread_id", t.threadId).eq("sender", "admin").is("read_at", null);
+  return count ?? 0;
 }

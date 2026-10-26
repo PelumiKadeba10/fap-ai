@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { cleanBody, isChannel, listThread, resolveThread } from "@/lib/messages";
+import { cleanBody, isFieldChannel, listThread, resolveThread } from "@/lib/messages";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const channel = u.searchParams.get("channel");
   const db = createAdminClient();
-  const thread = isChannel(channel) ? await resolveThread(db, channel, u.searchParams.get("token") ?? "") : null;
+  const thread = isFieldChannel(channel) ? await resolveThread(db, channel, u.searchParams.get("token") ?? "") : null;
   if (!thread) return NextResponse.json({ error: "This link isn’t valid." }, { status: 404, headers: NO_STORE });
   // Opening the chat counts as reading what the coordinator sent.
   await db.from("messages").update({ read_at: new Date().toISOString() }).eq("channel", thread.channel).eq("thread_id", thread.threadId).eq("sender", "admin").is("read_at", null);
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const b = (await req.json().catch(() => null)) as { channel?: string; token?: string; body?: string } | null;
   const db = createAdminClient();
-  const thread = isChannel(b?.channel) ? await resolveThread(db, b.channel, String(b?.token ?? "")) : null;
+  const thread = isFieldChannel(b?.channel) ? await resolveThread(db, b.channel, String(b?.token ?? "")) : null;
   if (!thread) return NextResponse.json({ error: "This link isn’t valid." }, { status: 404 });
   const body = cleanBody(b?.body);
   if (!body) return NextResponse.json({ error: "Write a message of up to 1000 characters." }, { status: 400 });
