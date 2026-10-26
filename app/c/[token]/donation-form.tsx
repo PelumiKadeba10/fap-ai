@@ -1,23 +1,54 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CloudOff } from "lucide-react";
 import { Spinner } from "@/components/spinner";
 import { OfflineBanner, OfflineSetup } from "@/components/offline-setup";
-import { enqueueTap, flushTaps, newTapId, removeTap, useOnline, useTapSync, useTaps } from "@/lib/tap-queue";
+import { enqueueTap, flushTaps, newTapId, removeTap, useTapSync, useTaps } from "@/lib/tap-queue";
 import { fmtTime } from "@/lib/format";
 
 const ENDPOINT = "/api/c/donate";
 
 export function DonationForm({ token, total }: { token: string; total: number }) {
   const router = useRouter();
-  const online = useOnline();
+  const [online, setOnline] = useState(true);
   const { taps, rejected } = useTaps(token);
   const refresh = useCallback(() => router.refresh(), [router]);
   useTapSync(token, refresh);
   const pending = taps.filter((t) => t.endpoint === ENDPOINT);
   const [busy, setBusy] = useState(false);
   const [discarding, setDiscarding] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let checking = false;
+    const checkConnection = async () => {
+      if (checking) return;
+      checking = true;
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        // A 4xx/5xx response still proves the app server is reachable; only a
+        // failed request should show the offline message.
+        await fetch(ENDPOINT, { method: "HEAD", cache: "no-store", signal: controller.signal });
+        if (active) setOnline(true);
+      } catch {
+        if (active) setOnline(false);
+      } finally {
+        window.clearTimeout(timeout);
+        checking = false;
+      }
+    };
+    void checkConnection();
+    const onOnline = () => void checkConnection();
+    window.addEventListener("online", onOnline);
+    const timer = window.setInterval(checkConnection, 20_000);
+    return () => {
+      active = false;
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(timer);
+    };
+  }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
