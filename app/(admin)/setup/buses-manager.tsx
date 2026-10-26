@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bus as BusIcon, Check, Copy, MessageCircle, Plus } from "lucide-react";
+import { Bus as BusIcon, Check, Copy, MessageCircle, Plus, Trash2 } from "lucide-react";
 import type { Bus } from "@/lib/types";
 import { packsFromCartons } from "@/lib/cartons";
 import { Spinner } from "@/components/spinner";
-import { saveBus, setBusActive } from "../actions";
+import { deleteBus, saveBus, setBusActive } from "../actions";
 import { EmptyState, Pill, SectionCard, cardTable } from "../ui";
 import { useAction } from "../use-action";
 import { useToast } from "../toast";
@@ -55,9 +55,10 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName, packsP
             {buses.map((b) => {
               const url = linkOf(b);
               return (
-                <BusRow key={b.id} bus={b} perCarton={perCarton} pending={pending} onTrip={busyIds.includes(b.id)} saving={isBusy("save:" + b.id)} toggling={isBusy("toggle:" + b.id)}
+                <BusRow key={b.id} bus={b} perCarton={perCarton} pending={pending} onTrip={busyIds.includes(b.id)} saving={isBusy("save:" + b.id)} toggling={isBusy("toggle:" + b.id)} deleting={isBusy("delete:" + b.id)}
                   onSave={(d) => run("save:" + b.id, () => saveBus({ id: b.id, ...d }))}
                   onToggle={() => run("toggle:" + b.id, () => setBusActive(b.id, !b.active))}
+                  onDelete={() => { if (window.confirm(`Delete “${b.name}” permanently? Its bus link will stop working.`)) run("delete:" + b.id, () => deleteBus(b.id)); }}
                   links={b.active && url ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <button className={ACT} onClick={() => copy(b, url)}>
@@ -69,7 +70,7 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName, packsP
                   ) : b.active ? <span className="text-[13px] text-muted">Link is being prepared…</span> : <Pill tone="muted">Switched off</Pill>} />
               );
             })}
-            {adding && <BusRow bus={null} perCarton={perCarton} pending={pending} onTrip={false} saving={isBusy("save:new")} toggling={false} links={null} onToggle={() => setAdding(false)} onSave={(d) => run("save:new", () => saveBus(d), () => setAdding(false))} />}
+            {adding && <BusRow bus={null} perCarton={perCarton} pending={pending} onTrip={false} saving={isBusy("save:new")} toggling={false} deleting={false} links={null} onToggle={() => setAdding(false)} onDelete={() => setAdding(false)} onSave={(d) => run("save:new", () => saveBus(d), () => setAdding(false))} />}
           </tbody>
         </table>
       ) : (
@@ -84,8 +85,8 @@ export function BusesManager({ buses, links, busyIds, siteUrl, eventName, packsP
   );
 }
 
-function BusRow({ bus, perCarton, pending, onTrip, saving, toggling, links, onSave, onToggle }: {
-  bus: Bus | null; perCarton: number | null; pending: boolean; onTrip: boolean; saving: boolean; toggling: boolean; links: React.ReactNode; onSave: (d: Draft) => void; onToggle: () => void;
+function BusRow({ bus, perCarton, pending, onTrip, saving, toggling, deleting, links, onSave, onToggle, onDelete }: {
+  bus: Bus | null; perCarton: number | null; pending: boolean; onTrip: boolean; saving: boolean; toggling: boolean; deleting: boolean; links: React.ReactNode; onSave: (d: Draft) => void; onToggle: () => void; onDelete: () => void;
 }) {
   const isNew = !bus;
   const [d, setD] = useState<Draft>(bus ? toDraft(bus) : { name: "", capacity: 400, lead_name: "", lead_phone: "" });
@@ -112,6 +113,9 @@ function BusRow({ bus, perCarton, pending, onTrip, saving, toggling, links, onSa
             {onTrip && <Pill tone="blue">On a trip</Pill>}
             <button className={(bus.active ? "link-danger" : "link") + " inline-flex items-center gap-1.5"} disabled={pending || onTrip} aria-busy={toggling} onClick={onToggle} aria-label={(bus.active ? "Switch off " : "Switch on ") + nm}>
               {toggling && <Spinner className="size-3.5" />}{toggling ? "Saving…" : bus.active ? "Switch off" : "Switch on"}
+            </button>
+            <button className="link-danger inline-flex items-center gap-1.5" disabled={pending || onTrip} aria-busy={deleting} onClick={onDelete} aria-label={`Delete ${nm}`} title={`Delete ${nm}`}>
+              {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" aria-hidden />}{deleting ? "Deleting…" : "Delete"}
             </button>
             {saving && <span className="inline-flex items-center gap-1.5 text-xs text-muted" role="status"><Spinner className="size-3.5" />Saving…</span>}
           </div>

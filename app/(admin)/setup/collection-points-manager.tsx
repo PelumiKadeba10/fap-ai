@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, Copy, MapPinned, MessageCircle, Plus } from "lucide-react";
+import { Check, Copy, MapPinned, MessageCircle, Plus, Trash2 } from "lucide-react";
 import type { CollectionPoint } from "@/lib/types";
-import { saveCollectionPoint, setCollectionPointActive } from "../actions";
+import { deleteCollectionPoint, saveCollectionPoint, setCollectionPointActive } from "../actions";
 import { EmptyState, Pill, SectionCard, cardTable } from "../ui";
 import { Spinner } from "@/components/spinner";
 import { useToast } from "../toast";
@@ -39,9 +39,10 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
           <thead><tr><th className="th">Collection point</th><th className="th">Location note</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Volunteers</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {points.map((p) => (
-              <PointRow key={p.id} point={p} pending={pending} saving={busy("save:" + p.id)} toggling={busy("toggle:" + p.id)}
+              <PointRow key={p.id} point={p} pending={pending} saving={busy("save:" + p.id)} toggling={busy("toggle:" + p.id)} deleting={busy("delete:" + p.id)}
                 onSave={(d) => run("save:" + p.id, () => saveCollectionPoint({ id: p.id, ...toInput(d) }))}
                 onToggle={() => run("toggle:" + p.id, () => setCollectionPointActive(p.id, !p.active))}
+                onDelete={() => { if (window.confirm(`Delete “${p.name}” permanently? Its food reports will remain but lose this collection point label.`)) run("delete:" + p.id, () => deleteCollectionPoint(p.id)); }}
                 actions={p.active ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <button className={ACT} onClick={() => copy(p)}>
@@ -54,7 +55,7 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
               />
             ))}
             {adding && (
-              <PointRow point={null} pending={pending} saving={busy("save:new")} toggling={false} onToggle={() => setAdding(false)}
+              <PointRow point={null} pending={pending} saving={busy("save:new")} toggling={false} deleting={false} onDelete={() => setAdding(false)} onToggle={() => setAdding(false)}
                 onSave={(d) => run("save:new", () => saveCollectionPoint(toInput(d)), () => setAdding(false))} actions={null} />
             )}
           </tbody>
@@ -71,8 +72,8 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
   );
 }
 
-function PointRow({ point, pending, saving, toggling, onSave, onToggle, actions }: {
-  point: CollectionPoint | null; pending: boolean; saving: boolean; toggling: boolean; onSave: (d: Draft) => void; onToggle: () => void; actions: React.ReactNode;
+function PointRow({ point, pending, saving, toggling, deleting, onSave, onToggle, onDelete, actions }: {
+  point: CollectionPoint | null; pending: boolean; saving: boolean; toggling: boolean; deleting: boolean; onSave: (d: Draft) => void; onToggle: () => void; onDelete: () => void; actions: React.ReactNode;
 }) {
   const isNew = !point;
   const [d, setD] = useState<Draft>(point ? toDraft(point) : { name: "", location_note: "", lead_name: "", lead_phone: "", volunteers: "" });
@@ -95,9 +96,14 @@ function PointRow({ point, pending, saving, toggling, onSave, onToggle, actions 
             <button className="link" onClick={onToggle}>Cancel</button>
           </div>
         ) : (
-          <button className={`${point.active ? "link-danger" : "link"} inline-flex items-center gap-1.5`} disabled={pending} aria-busy={toggling} onClick={onToggle} aria-label={`${point.active ? "Switch off" : "Switch on"} ${nm}`}>
-            {toggling && <Spinner className="size-3.5" />}{toggling ? "Saving…" : point.active ? "Switch off" : "Switch on"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button className={`${point.active ? "link-danger" : "link"} inline-flex items-center gap-1.5`} disabled={pending} aria-busy={toggling} onClick={onToggle} aria-label={`${point.active ? "Switch off" : "Switch on"} ${nm}`}>
+              {toggling && <Spinner className="size-3.5" />}{toggling ? "Saving…" : point.active ? "Switch off" : "Switch on"}
+            </button>
+            <button className="link-danger inline-flex items-center gap-1.5" disabled={pending} aria-busy={deleting} onClick={onDelete} aria-label={`Delete ${nm}`} title={`Delete ${nm}`}>
+              {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" aria-hidden />}{deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
         )}
       </td>
     </tr>

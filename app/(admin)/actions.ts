@@ -249,6 +249,19 @@ export async function setCollectionPointActive(id: string, active: boolean): Pro
   return { ok: true };
 }
 
+export async function deleteCollectionPoint(id: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown collection point." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "No event selected." };
+  const supabase = await db();
+  const { count } = await supabase.from("trips").select("id", { count: "exact", head: true }).eq("event_id", event.id).eq("hub_id", id);
+  if (count) return { ok: false, error: "This collection point is used by a trip and cannot be deleted. Switch it off instead." };
+  const { error } = await supabase.from("collection_points").delete().eq("id", id).eq("event_id", event.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 /* ---------- Places (shared list) and this event's places ---------- */
 
 const PlaceDetails = z.object({
@@ -601,6 +614,19 @@ export async function setBusActive(id: string, active: boolean): Promise<Result>
   if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown bus." };
   const supabase = await db();
   const { error } = await supabase.from("buses").update({ active }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteBus(id: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown bus." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "No event selected." };
+  const supabase = await db();
+  const { count } = await supabase.from("trips").select("id", { count: "exact", head: true }).eq("event_id", event.id).eq("bus_id", id);
+  if (count) return { ok: false, error: "This bus is used by a trip and cannot be deleted. Switch it off instead." };
+  const { error } = await supabase.from("buses").delete().eq("id", id).eq("event_id", event.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/", "layout");
   return { ok: true };
