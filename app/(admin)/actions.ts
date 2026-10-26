@@ -89,7 +89,8 @@ export async function deleteEvent(id: string): Promise<Result> {
 
   const { error } = await supabase.from("events").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
-  (await cookies()).delete(EVENT_COOKIE);
+  const cookieStore = await cookies();
+  if (cookieStore.get(EVENT_COOKIE)?.value === id) cookieStore.delete(EVENT_COOKIE);
   revalidatePath("/", "layout");
   return { ok: true };
 }

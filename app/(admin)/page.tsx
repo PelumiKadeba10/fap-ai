@@ -6,6 +6,7 @@ import { TZ, n0 } from "@/lib/format";
 import { eventPhase, type EventPhase } from "@/lib/overview";
 import { PendingOverlay, SubmitButton } from "@/components/submit-button";
 import { openEvent } from "./actions";
+import { EventDeleteButton } from "./event-delete-button";
 import { EmptyState, PageHeader, Pill } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -55,11 +56,11 @@ function Group({ title, items, phase }: { title: string; items: EventOverview[];
 function EventCard({ o, phase }: { o: EventOverview; phase: EventPhase }) {
   const { event: e } = o;
   return (
-    <li>
+    <li className="relative">
       <form action={openEvent}>
         <input type="hidden" name="id" value={e.id} />
         <input type="hidden" name="to" value={phase === "live" ? "/live" : "/event"} />
-        <SubmitButton bare className="group relative block w-full rounded-xl border border-line p-4 text-left transition-colors hover:border-[#b9c1c9] hover:bg-soft sm:p-5">
+        <SubmitButton bare className="group relative block w-full rounded-xl border border-line p-4 pr-14 text-left transition-colors hover:border-[#b9c1c9] hover:bg-soft sm:p-5 sm:pr-14">
           <PendingOverlay text="Opening…" />
           <span className="flex items-start justify-between gap-3">
             <span className="min-w-0">
@@ -76,6 +77,7 @@ function EventCard({ o, phase }: { o: EventOverview; phase: EventPhase }) {
           </span>
         </SubmitButton>
       </form>
+      <span className="absolute top-2.5 right-2.5"><EventDeleteButton id={e.id} name={e.name} /></span>
     </li>
   );
 }
