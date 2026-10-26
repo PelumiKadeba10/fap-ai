@@ -53,17 +53,21 @@ export function DonationForm({ token, total }: { token: string; total: number })
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
-    const fd = new FormData(e.currentTarget);
+    // React clears e.currentTarget after the first await, so keep the form now.
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const packs = Number(fd.get("packs"));
     const dropper = String(fd.get("dropper") ?? "").trim();
     setBusy(true);
     try {
       await enqueueTap({ id: newTapId(), scope: token, endpoint: ENDPOINT, at: new Date().toISOString(), label: `${packs} donated packs`, payload: { token, packs, ...(dropper ? { dropper } : {}) } });
       await flushTaps(token);
-      e.currentTarget.reset();
-      router.refresh();
-    } catch { window.alert("Couldn't save that donation on this phone. Check your connection and try again."); }
-    finally { setBusy(false); }
+    } catch {
+      window.alert("Couldn't save that donation on this phone. Check your connection and try again.");
+      return;
+    } finally { setBusy(false); }
+    form.reset();
+    router.refresh();
   }
 
   async function discard(id: string) { setDiscarding(id); try { await removeTap(id); } finally { setDiscarding(""); } }
