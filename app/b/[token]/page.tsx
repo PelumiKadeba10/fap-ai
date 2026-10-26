@@ -7,6 +7,7 @@ import { fmtTime } from "@/lib/format";
 import { groupStops, stopStatus } from "@/lib/trip-status";
 import type { DeliveryStatus } from "@/lib/types";
 import { OfflineSetup } from "@/components/offline-setup";
+import { FieldChat } from "@/components/field-chat";
 import { AutoRefresh } from "./auto-refresh";
 import { BusTrip, type StopView } from "./bus-trip";
 
@@ -71,6 +72,7 @@ export default async function BusPage({ params, searchParams }: { params: Promis
           </p>
         </section>
         <EarlierTrips trips={earlier} perCarton={perCarton} />
+        <FieldChat channel="bus" token={token} />
         {who?.events?.bus_ready_by && <p className="text-sm text-[#4a525c]">Bus at the collection point by <b className="font-mono">{fmtTime(who.events.bus_ready_by)}</b>.</p>}
       </Shell>
     );
@@ -102,6 +104,8 @@ export default async function BusPage({ params, searchParams }: { params: Promis
       />
 
       <EarlierTrips trips={earlier} perCarton={perCarton} />
+
+      <FieldChat channel="bus" token={token} />
 
       <p className="text-sm text-[#4a525c]">Keep this link for the whole night. Your next trip will appear on this page.</p>
     </Shell>

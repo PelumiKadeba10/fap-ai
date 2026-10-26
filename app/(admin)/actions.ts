@@ -17,6 +17,7 @@ import { nextTripNos } from "@/lib/bus-state";
 import { parsePledgeList } from "@/lib/pledges";
 import { canTripMove } from "@/lib/trip-status";
 import type { DeliveryStatus, TripStatus } from "@/lib/types";
+import { cleanBody, isChannel } from "@/lib/messages";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -735,4 +736,29 @@ export async function importPledges(text: string, collectionPointId: string | nu
   if (error) return { ok: false, error: error.message };
   revalidatePath("/", "layout");
   return { ok: true, added: list.length };
+}
+
+/* ---------- Messages ---------- */
+
+/** The coordinator writes to a bus lead (channel "bus") or a collection point's food intake link (channel "intake"). */
+export async function sendMessage(channel: string, threadId: string, text: string): Promise<Result> {
+  if (!isChannel(channel) || !z.string().uuid().safeParse(threadId).success) return { ok: false, error: "Unknown conversation." };
+  const body = cleanBody(text);
+  if (!body) return { ok: false, error: "Write a message of up to 1000 characters." };
+  const event = await getActiveEvent();
+  if (!event) return { ok: false, error: "No event selected." };
+  const supabase = await db();
+  const { error } = await supabase.from("messages").insert({ event_id: event.id, channel, thread_id: threadId, sender: "admin", body });
+  if (error) return { ok: false, error: "Couldn’t send that message. Try again." };
+  return { ok: true };
+}
+
+/** Marks what the field sent in a conversation as read, which clears its badge. */
+export async function markThreadRead(channel: string, threadId: string): Promise<Result> {
+  if (!isChannel(channel) || !z.string().uuid().safeParse(threadId).success) return { ok: false, error: "Unknown conversation." };
+  const supabase = await db();
+  const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() }).eq("channel", channel).eq("thread_id", threadId).eq("sender", "field").is("read_at", null);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
 }

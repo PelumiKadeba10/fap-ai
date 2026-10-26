@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, MapPinned, PencilLine } from "lucide-react";
-import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getFoodDonations, getPhotoUrls, getPledges, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getFoodDonations, getPhotoUrls, getPledges, getUnreadByPoint, sumBy } from "@/lib/data";
 import { waitingByHub } from "@/lib/food-waiting";
 import { n0 } from "@/lib/format";
 import { EmptyState, PageHeader, SectionCard, Stat } from "../ui";
@@ -10,6 +10,7 @@ import { NeedsChecking } from "./needs-checking";
 import { PickupsCard } from "./pickups-card";
 import { SetupSummary } from "../setup-summary";
 import { IntakeSectionLinks } from "./section-links";
+import { PointCards, type PointStats } from "./point-cards";
 
 export default async function IntakePage() {
   const event = await getActiveEvent();
@@ -24,6 +25,7 @@ export default async function IntakePage() {
     getPledges(event.id),
     getFoodDonations(event.id),
   ]);
+  const unread = await getUnreadByPoint(event.id);
   const photos = await getPhotoUrls([...approved, ...pending]);
   const sent = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
   const waiting = waitingByHub(approved, deliveries);
@@ -31,6 +33,15 @@ export default async function IntakePage() {
   const reportFood = [...approved, ...pending].reduce((n, b) => n + b.qty, 0);
   const pickupPacks = pledges.filter((p) => p.status === "picked_up").reduce((n, p) => n + (p.picked_up_packs ?? 0), 0);
   const donatedPacks = donations.reduce((n, d) => n + d.packs, 0);
+
+  const sumFor = <T extends { collection_point_id: string | null }>(rows: T[], id: string, n: (r: T) => number) => rows.filter((r) => r.collection_point_id === id).reduce((t, r) => t + n(r), 0);
+  const pointStats: Record<string, PointStats> = Object.fromEntries(points.map((p) => [p.id, {
+    waiting: waiting[p.id]?.portions ?? 0,
+    reported: sumFor([...approved, ...pending], p.id, (b) => b.qty),
+    pickedUp: sumFor(pledges.filter((x) => x.status === "picked_up"), p.id, (x) => x.picked_up_packs ?? 0),
+    donated: sumFor(donations, p.id, (d) => d.packs),
+    unread: unread[p.id] ?? 0,
+  }]));
 
   return (
     <>
@@ -43,16 +54,8 @@ export default async function IntakePage() {
       <SetupSummary points={points.length} />
 
       {points.some((p) => p.active) && (
-        <SectionCard id="collection-points" title="Collection points" icon={MapPinned} accent="blue" count={points.filter((p) => p.active).length} aside="volunteers and packs waiting">
-        <ul className="flex flex-col gap-1 text-[15px]" aria-label="Collection points">
-          {points.filter((p) => p.active).map((p) => (
-            <li key={p.id}>
-              <b className="font-semibold">{p.name}</b>
-              {p.volunteers != null && <> · <span className="font-mono">{p.volunteers}</span> {p.volunteers === 1 ? "volunteer" : "volunteers"}</>}
-              {" "}· <span className="font-mono">{n0(waiting[p.id]?.portions ?? 0)}</span> packs waiting
-            </li>
-          ))}
-        </ul>
+        <SectionCard id="collection-points" title="Collection points" icon={MapPinned} accent="blue" count={points.filter((p) => p.active).length} aside="what each point has sent, and its links">
+        <PointCards points={points.filter((p) => p.active)} stats={pointStats} siteUrl={process.env.SITE_URL ?? ""} />
         <div className="mt-5 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-3">
           <Stat label="Report food" value={`${n0(reportFood)} packs`} hint="Operational food reports" />
           <Stat label="Pick-ups" value={`${n0(pickupPacks)} packs`} hint="Confirmed pickup statistics" />

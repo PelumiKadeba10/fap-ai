@@ -33,7 +33,7 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
   }
 
   return (
-    <SectionCard id="collection-points" title="Collection points for this event" icon={MapPinned} accent="orange" count={points.length} aside="Each point gets separate Report Food and Food Intake Record links. No login needed.">
+    <SectionCard id="collection-points" title="Collection points for this event" icon={MapPinned} accent="orange" count={points.length} aside="Each point gets separate Batch Submission and Food Intake links. No login needed.">
       {points.length > 0 || adding ? (
         <table className={cardTable}>
           <thead><tr><th className="th">Collection point</th><th className="th">Location note</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Volunteers</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
@@ -47,11 +47,11 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
                   <div className="flex flex-wrap items-center gap-2">
                     <button className={ACT} onClick={() => copy(p, "report")}>
                       {copied === `${p.id}:report` ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-                      {copied === `${p.id}:report` ? "Copied" : "Report link"}
+                      {copied === `${p.id}:report` ? "Copied" : "Batch Submission link"}
                     </button>
                     <button className={ACT} onClick={() => copy(p, "intake")}>
                       {copied === `${p.id}:intake` ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-                      {copied === `${p.id}:intake` ? "Copied" : "Intake link"}
+                      {copied === `${p.id}:intake` ? "Copied" : "Food Intake Link"}
                     </button>
                     <a className={ACT} href={telegram(p)} target="_blank" rel="noreferrer"><Send className="size-4" aria-hidden />Telegram</a>
                   </div>

@@ -5,6 +5,7 @@ import { foodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
 import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, FoodDonation, Pledge, ReviewStatus, Site, Trip, Volunteer } from "./types";
+import type { Channel, Message } from "./messages";
 import { foodCountSummary, type FoodCountRow } from "./food-counts";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
@@ -44,19 +45,20 @@ export async function getCollectionPoints(eventId: string): Promise<CollectionPo
   return (data ?? []) as CollectionPoint[];
 }
 
-export type EventCounts = { pendingBatches: number; portionsWaiting: number };
+export type EventCounts = { pendingBatches: number; portionsWaiting: number; unreadMessages: number };
 
 /** Waiting work for the nav badges: batches to check on Food intake, and approved portions not yet on a trip. */
 export async function getEventCounts(eventId: string): Promise<EventCounts> {
   const supabase = await createClient();
-  const [b, d] = await Promise.all([
+  const [m, b, d] = await Promise.all([
+    supabase.from("messages").select("id", { count: "exact", head: true }).eq("event_id", eventId).eq("sender", "field").is("read_at", null),
       supabase.from("batches").select("id, qty, edible_packs, review_status").eq("event_id", eventId),
     supabase.from("deliveries").select("batch_id, qty").eq("event_id", eventId),
   ]);
     const batches = (b.data ?? []) as { id: string; qty: number; edible_packs: number | null; review_status: ReviewStatus }[];
   const deliveries = (d.data ?? []) as { batch_id: string; qty: number }[];
   const w = foodWaiting(batches, deliveries);
-  return { pendingBatches: batches.filter((x) => x.review_status === "pending").length, portionsWaiting: w.portions };
+  return { pendingBatches: batches.filter((x) => x.review_status === "pending").length, portionsWaiting: w.portions, unreadMessages: m.count ?? 0 };
 }
 
 export async function getSites(): Promise<Site[]> {
@@ -189,4 +191,39 @@ export async function getFoodCountSummary(eventId: string): Promise<FoodCountRow
     supabase.from("deliveries").select("batch_id, qty, status").eq("event_id", eventId),
   ]);
   return foodCountSummary(b.data ?? [], t.data ?? [], d.data ?? []);
+}
+
+export type ThreadSummary = { channel: Channel; threadId: string; name: string; sub: string | null; unread: number; last: Message | null };
+
+/** Every message thread of an event: one per bus and one per active collection point, with unread counts and the latest message. */
+export async function getThreads(eventId: string): Promise<ThreadSummary[]> {
+  const supabase = await createClient();
+  const [links, points, msgs] = await Promise.all([
+    supabase.from("bus_links").select("id, buses(name)").eq("event_id", eventId),
+    supabase.from("collection_points").select("id, name, lead_name").eq("event_id", eventId).eq("active", true).order("created_at"),
+    supabase.from("messages").select("*").eq("event_id", eventId).order("created_at", { ascending: false }).limit(1000),
+  ]);
+  const all = (msgs.data ?? []) as Message[];
+  const summarize = (channel: Channel, threadId: string, name: string, sub: string | null): ThreadSummary => {
+    const mine = all.filter((m) => m.channel === channel && m.thread_id === threadId);
+    return { channel, threadId, name, sub, unread: mine.filter((m) => m.sender === "field" && !m.read_at).length, last: mine[0] ?? null };
+  };
+  const buses = ((links.data ?? []) as unknown as { id: string; buses: { name: string } | null }[]).map((l) => summarize("bus", l.id, l.buses?.name ?? "Bus", null));
+  const hubs = ((points.data ?? []) as { id: string; name: string; lead_name: string | null }[]).map((p) => summarize("intake", p.id, p.name, p.lead_name));
+  return [...buses, ...hubs];
+}
+
+export async function getThreadMessages(channel: Channel, threadId: string): Promise<Message[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("messages").select("*").eq("channel", channel).eq("thread_id", threadId).order("created_at", { ascending: false }).limit(200);
+  return ((data ?? []) as Message[]).reverse();
+}
+
+/** Unread messages from each collection point's food intake link. */
+export async function getUnreadByPoint(eventId: string): Promise<Record<string, number>> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("messages").select("thread_id").eq("event_id", eventId).eq("channel", "intake").eq("sender", "field").is("read_at", null);
+  const out: Record<string, number> = {};
+  for (const m of (data ?? []) as { thread_id: string }[]) out[m.thread_id] = (out[m.thread_id] ?? 0) + 1;
+  return out;
 }

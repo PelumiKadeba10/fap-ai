@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, CalendarDays, FileBarChart, History, Inbox, Route, Settings } from "lucide-react";
+import { Activity, CalendarDays, FileBarChart, History, Inbox, MessageSquare, Route, Settings } from "lucide-react";
 
 export const TABS = [
   ["/setup", "Setup", Settings],
@@ -10,12 +10,13 @@ export const TABS = [
   ["/intake", "Food intake", Inbox],
   ["/match", "Plan trips", Route],
   ["/live", "Live", Activity],
+  ["/messages", "Messages", MessageSquare],
   ["/impact", "Impact", FileBarChart],
   ["/audit", "Audit log", History],
 ] as const;
 
 /** Waiting work, shown as badges: batches to check on Food intake, approved portions not yet on a trip. */
-export type NavCounts = { pendingBatches: number; portionsWaiting: number };
+export type NavCounts = { pendingBatches: number; portionsWaiting: number; unreadMessages: number };
 
 /** The events overview sits outside any event, so it has no event tabs. */
 export const isOutsideEvent = (path: string) => path === "/";
@@ -26,6 +27,13 @@ export function TabBadge({ href, counts }: { href: string; counts: NavCounts }) 
     return (
       <span className="rounded-full bg-orange px-1.5 py-px font-mono text-[11px] font-semibold text-ink" aria-label={`${counts.pendingBatches} ${counts.pendingBatches === 1 ? "batch needs" : "batches need"} checking`}>
         {counts.pendingBatches}
+      </span>
+    );
+  }
+  if (href === "/messages" && counts.unreadMessages > 0) {
+    return (
+      <span className="rounded-full bg-crit px-1.5 py-px font-mono text-[11px] font-semibold text-white" aria-label={`${counts.unreadMessages} unread ${counts.unreadMessages === 1 ? "message" : "messages"}`}>
+        {counts.unreadMessages}
       </span>
     );
   }

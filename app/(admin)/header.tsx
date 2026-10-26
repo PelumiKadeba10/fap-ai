@@ -29,7 +29,7 @@ export function Header({ eventId, eventName, counts }: { eventId: string | null;
   const [open, setOpen] = useState(false);
   const menuBtn = useRef<HTMLButtonElement>(null);
   const tab = TABS.find(([href]) => path.startsWith(href));
-  const waiting = counts.pendingBatches > 0 || counts.portionsWaiting > 0;
+  const waiting = counts.pendingBatches > 0 || counts.portionsWaiting > 0 || counts.unreadMessages > 0;
 
   // Close the menu whenever the route changes.
   useEffect(() => { setOpen(false); }, [path]);

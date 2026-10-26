@@ -7,6 +7,7 @@ import { byPickupTime } from "@/lib/pledges";
 import { PickupList } from "@/app/c/[token]/pickup-list";
 import { PickupStatus } from "@/app/c/[token]/pickup-actions";
 import { DonationForm } from "@/app/c/[token]/donation-form";
+import { FieldChat } from "@/components/field-chat";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Food intake record · FAP AI", robots: { index: false }, manifest: "/manifest.webmanifest" };
@@ -32,6 +33,7 @@ export default async function IntakeRecordPage({ params, searchParams }: { param
     <nav aria-label="Sections" className="grid grid-cols-2 gap-2"><Link href={`/i/${token}`} aria-current={!donatedTab ? "page" : undefined} className={`flex min-h-14 items-center justify-center gap-1 rounded-xl border-2 border-ink px-2 text-center text-lg font-semibold ${!donatedTab ? "bg-ink text-white" : "bg-white text-ink"}`}>Pick-ups{openCount > 0 && <span className="rounded-full bg-orange px-2 py-0.5 font-mono text-sm text-white">{openCount}</span>}</Link><Link href={`/i/${token}?tab=donated`} aria-current={donatedTab ? "page" : undefined} className={`flex min-h-14 items-center justify-center rounded-xl border-2 border-ink px-2 text-center text-lg font-semibold ${donatedTab ? "bg-ink text-white" : "bg-white text-ink"}`}>Food donated</Link></nav>
     {!donatedTab && <><PickupStatus token={token} banner /><PickupList token={token} pledges={pledges} done={done} /></>}
     {donatedTab && <DonationForm token={token} total={(donations ?? []).reduce((n, d) => n + d.packs, 0)} />}
+    <FieldChat channel="intake" token={token} />
     {e && <p role="alert" className="flex items-start gap-2 rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit"><AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />{e}</p>}
   </Shell>;
 }

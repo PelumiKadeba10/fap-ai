@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect("/login");
   const event = await getActiveEvent();
   // Waiting work for the tab badges: batches to check, and portions not yet on a trip.
-  const counts = event ? await getEventCounts(event.id) : { pendingBatches: 0, portionsWaiting: 0 };
+  const counts = event ? await getEventCounts(event.id) : { pendingBatches: 0, portionsWaiting: 0, unreadMessages: 0 };
 
   return (
     <ToastProvider>
