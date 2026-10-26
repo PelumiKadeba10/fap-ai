@@ -53,21 +53,19 @@ export function PickupButtons({ token, pledge }: { token: string; pledge: { id: 
 
   const waiting = taps.filter((t) => t.endpoint === ENDPOINT && t.payload.pledge === pledge.id && !rejected[t.id]);
   const finished = waiting.find((t) => t.payload.intent === "picked_up" || t.payload.intent === "no_food");
-  const onTheWay = pledge.status === "on_the_way" || waiting.some((t) => t.payload.intent === "on_the_way");
 
   async function send(e: React.FormEvent<HTMLFormElement>, intent: string) {
     e.preventDefault();
     if (busy) return;
     const fd = new FormData(e.currentTarget);
     const packs = Number(String(fd.get("packs") ?? "").trim());
-    const edible = Number(String(fd.get("edible") ?? "").trim());
     const note = String(fd.get("note") ?? "").trim();
     const label = intent === "on_the_way" ? `On my way: ${pledge.tent}` : intent === "no_food" ? `No food: ${pledge.tent}` : `Picked up ${packs} packs: ${pledge.tent}`;
     setBusy(intent);
     try {
       await enqueueTap({
         id: newTapId(), scope: token, endpoint: ENDPOINT, at: new Date().toISOString(), label,
-        payload: { token, intent, pledge: pledge.id, ...(intent === "picked_up" ? { packs, edible } : {}), ...(note ? { note } : {}) },
+        payload: { token, intent, pledge: pledge.id, ...(intent === "picked_up" ? { packs } : {}), ...(note ? { note } : {}) },
       });
       if (await flushTaps(token)) router.refresh();
     } catch {
@@ -89,7 +87,7 @@ export function PickupButtons({ token, pledge }: { token: string; pledge: { id: 
 
   return (
     <div className="mt-3 flex flex-col gap-3">
-      {!onTheWay && (
+      {false && (
         <form action={pickupAction} onSubmit={(e) => send(e, "on_the_way")}>
           {hidden("on_the_way")}
           <button disabled={!!busy} aria-busy={busy === "on_the_way"} className={`${BTN} inline-flex items-center justify-center gap-2 border-2 border-ink bg-white text-ink`}>
@@ -101,12 +99,10 @@ export function PickupButtons({ token, pledge }: { token: string; pledge: { id: 
         {hidden("picked_up")}
         <label className="text-base font-semibold" htmlFor={"packs-" + pledge.id}>Packs picked up</label>
         <input id={"packs-" + pledge.id} name="packs" type="number" inputMode="numeric" min={1} required defaultValue={pledge.packs ?? undefined} className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-xl text-ink" />
-        <label className="text-base font-semibold" htmlFor={"edible-" + pledge.id}>Edible packs after sorting</label>
-        <input id={"edible-" + pledge.id} name="edible" type="number" inputMode="numeric" min={0} required className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-xl text-ink" />
         <label className="text-base font-semibold" htmlFor={"note-" + pledge.id}>Note <span className="font-normal text-[#4a525c]">(optional)</span></label>
         <input id={"note-" + pledge.id} name="note" maxLength={120} className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-lg text-ink" />
         <button disabled={!!busy} aria-busy={busy === "picked_up"} className={`${BTN} inline-flex items-center justify-center gap-2 bg-ink text-white`}>
-          {busy === "picked_up" && <Spinner />}{busy === "picked_up" ? "Saving…" : "Picked up"}
+          {busy === "picked_up" && <Spinner />}{busy === "picked_up" ? "Confirming…" : "Confirm pickup"}
         </button>
       </form>
       <form action={pickupAction} onSubmit={(e) => send(e, "no_food")}>

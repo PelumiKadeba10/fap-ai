@@ -49,6 +49,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const { data: pledgeRows } = await db.from("pledges").select("*").eq("collection_point_id", cp.id).returns<Pledge[]>();
   const pledges = byPickupTime(pledgeRows ?? []);
   const openCount = pledges.filter((p) => p.status === "pledged" || p.status === "on_the_way").length;
+  const pendingPickupReports = pledges.filter((p) => p.status === "picked_up" && p.batch_id == null && p.picked_up_packs != null);
 
   const [{ data: subs }, sent] = await Promise.all([
     db.from("batches").select("id, food, qty, edible_packs, notes, review_status, photo_path, created_at").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).limit(5).returns<Sub[]>(),
@@ -94,6 +95,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
       )}
 
       {!pickupsTab && (<>
+      {pendingPickupReports.length > 0 && <ReportForm token={token} pickupPledges={pendingPickupReports.map((p) => ({ id: p.id, tent_name: p.tent_name, picked_up_packs: p.picked_up_packs! }))} />}
       <ReportForm token={token} />
 
       <section aria-labelledby="recent">

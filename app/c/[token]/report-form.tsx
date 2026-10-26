@@ -16,7 +16,8 @@ const INPUT = "min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text
  * With JavaScript it sends in the background, and when there is no signal it keeps the report on the phone
  * and sends it by itself when the connection comes back.
  */
-export function ReportForm({ token }: { token: string }) {
+export function ReportForm({ token, pickupPledges = [] }: { token: string; pickupPledges?: { id: string; tent_name: string; picked_up_packs: number }[] }) {
+  const pickupCount = pickupPledges.reduce((n, p) => n + p.picked_up_packs, 0);
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
   const flushing = useRef(false);
@@ -86,6 +87,7 @@ export function ReportForm({ token }: { token: string }) {
     const report: QueuedReport = {
       id: newId(), token, food: String(fd.get("food") ?? "").trim(), count: Number(fd.get("count")),
       edible: Number(fd.get("edible")), notes: String(fd.get("notes") ?? "").trim(),
+      pickupPledges: pickupPledges.length ? pickupPledges.map((p) => p.id) : undefined,
       photo: photo instanceof File && photo.size > 0 ? photo : null, createdAt: Date.now(),
     };
     setBusy(true);
@@ -132,10 +134,17 @@ export function ReportForm({ token }: { token: string }) {
 
       <form ref={form} action={submitFood} onSubmit={onSubmit} className="flex flex-col gap-3">
         <input type="hidden" name="token" value={token} />
-        <label htmlFor="food" className="text-lg font-semibold">What did you collect?</label>
+        {pickupPledges.length > 0 && (
+          <>
+            <h2 className="text-xl font-semibold">Report picked-up food</h2>
+            <p className="text-base text-[#4a525c]">Confirmed pickups: {pickupPledges.map((p) => `${p.tent_name} (${p.picked_up_packs})`).join(", ")}</p>
+            <input type="hidden" name="pickup_pledges" value={JSON.stringify(pickupPledges.map((p) => p.id))} />
+          </>
+        )}
+        <label htmlFor="food" className="text-lg font-semibold">What food was collected?</label>
         <input id="food" name="food" required maxLength={80} placeholder="e.g. Jollof rice and chicken" className={INPUT} />
-        <label htmlFor="count" className="text-lg font-semibold">Number of boxes / cartons</label>
-        <input id="count" name="count" type="number" inputMode="numeric" required min={1} max={100000} step={1} placeholder="e.g. 20" className={`${INPUT} font-mono`} />
+        <label htmlFor="count" className="text-lg font-semibold">Total packs collected</label>
+        <input id="count" name="count" type="number" inputMode="numeric" required min={1} max={100000} step={1} defaultValue={pickupPledges.length ? pickupCount : undefined} readOnly={pickupPledges.length > 0} placeholder="e.g. 20" className={`${INPUT} font-mono ${pickupPledges.length ? "bg-soft" : ""}`} />
         <label htmlFor="edible" className="text-lg font-semibold">Edible packs after sorting</label>
         <p className="text-base text-[#4a525c]">Count the edible packs from this report only.</p>
         <input id="edible" name="edible" type="number" inputMode="numeric" required min={0} step={1} placeholder="e.g. 18" className={`${INPUT} font-mono`} />
