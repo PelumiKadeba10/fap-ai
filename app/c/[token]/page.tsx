@@ -23,7 +23,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const db = createAdminClient();
   let cp: Point | null = null;
   if (/^[a-f0-9]{32}$/.test(token)) {
-    const lookup = await db.from("collection_points").select("id, event_id, name, location_note, active, events(name)").eq("token", token).maybeSingle<Point>();
+    const lookup = await db.from("collection_points").select("id, event_id, name, location_note, active, events!collection_points_event_id_fkey(name)").eq("token", token).maybeSingle<Point>();
     cp = lookup.data;
     if (lookup.error) console.error("[collection-point] token lookup failed", { tokenSuffix: token.slice(-6), code: lookup.error.code, message: lookup.error.message, details: lookup.error.details, hint: lookup.error.hint });
     else if (!cp) console.warn("[collection-point] token not found", { tokenSuffix: token.slice(-6) });
