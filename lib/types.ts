@@ -82,7 +82,18 @@ export interface CollectionPoint {
   lead_phone: string | null;
   volunteers: number | null;
   token: string;
+  intake_token: string;
   active: boolean;
+  created_at: string;
+}
+
+export interface FoodDonation {
+  id: string;
+  event_id: string;
+  collection_point_id: string;
+  packs: number;
+  dropper_name: string | null;
+  donated_at: string;
   created_at: string;
 }
 

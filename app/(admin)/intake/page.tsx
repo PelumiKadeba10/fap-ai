@@ -1,31 +1,36 @@
 import Link from "next/link";
 import { ChevronRight, MapPinned, PencilLine } from "lucide-react";
-import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getPhotoUrls, getPledges, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getCollectionPoints, getDeliveries, getFoodDonations, getPhotoUrls, getPledges, sumBy } from "@/lib/data";
 import { waitingByHub } from "@/lib/food-waiting";
 import { n0 } from "@/lib/format";
-import { EmptyState, PageHeader, SectionCard } from "../ui";
+import { EmptyState, PageHeader, SectionCard, Stat } from "../ui";
 import { IntakeBox } from "./intake-box";
 import { BatchTable } from "./batch-table";
 import { NeedsChecking } from "./needs-checking";
 import { PickupsCard } from "./pickups-card";
 import { SetupSummary } from "../setup-summary";
+import { IntakeSectionLinks } from "./section-links";
 
 export default async function IntakePage() {
   const event = await getActiveEvent();
   if (!event) {
     return <EmptyState action={<Link href="/event?new=1">Create an event</Link>}>Create the event first.</EmptyState>;
   }
-  const [approved, pending, points, deliveries, pledges] = await Promise.all([
+  const [approved, pending, points, deliveries, pledges, donations] = await Promise.all([
     getBatches(event.id, "approved"),
     getBatches(event.id, "pending"),
     getCollectionPoints(event.id),
     getDeliveries(event.id),
     getPledges(event.id),
+    getFoodDonations(event.id),
   ]);
   const photos = await getPhotoUrls([...approved, ...pending]);
   const sent = sumBy(deliveries, (d) => d.batch_id, (d) => d.qty);
   const waiting = waitingByHub(approved, deliveries);
   const pointNames = Object.fromEntries(points.map((p) => [p.id, p.name]));
+  const reportFood = [...approved, ...pending].reduce((n, b) => n + b.qty, 0);
+  const pickupPacks = pledges.filter((p) => p.status === "picked_up").reduce((n, p) => n + (p.picked_up_packs ?? 0), 0);
+  const donatedPacks = donations.reduce((n, d) => n + d.packs, 0);
 
   return (
     <>
@@ -33,11 +38,12 @@ export default async function IntakePage() {
         title="Check what the collection points send."
         description="Each collection point reports food from its own link. Check every submission before it is matched. FAP AI scores its urgency."
       />
+      <IntakeSectionLinks />
 
       <SetupSummary points={points.length} />
 
       {points.some((p) => p.active) && (
-        <SectionCard id="points" title="Collection points" icon={MapPinned} accent="blue" count={points.filter((p) => p.active).length} aside="volunteers and packs waiting">
+        <SectionCard id="collection-points" title="Collection points" icon={MapPinned} accent="blue" count={points.filter((p) => p.active).length} aside="volunteers and packs waiting">
         <ul className="flex flex-col gap-1 text-[15px]" aria-label="Collection points">
           {points.filter((p) => p.active).map((p) => (
             <li key={p.id}>
@@ -47,6 +53,11 @@ export default async function IntakePage() {
             </li>
           ))}
         </ul>
+        <div className="mt-5 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-3">
+          <Stat label="Report food" value={`${n0(reportFood)} packs`} hint="Operational food reports" />
+          <Stat label="Pick-ups" value={`${n0(pickupPacks)} packs`} hint="Confirmed pickup statistics" />
+          <Stat label="Food donated" value={`${n0(donatedPacks)} packs`} hint="Statistics-only donations" />
+        </div>
         </SectionCard>
       )}
 

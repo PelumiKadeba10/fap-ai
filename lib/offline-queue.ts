@@ -1,6 +1,6 @@
 // BROWSER ONLY: reports saved on the phone until they can be sent. Stored in IndexedDB so they survive closing the tab.
 
-export type QueuedReport = { id: string; token: string; food: string; count: number; edible: number; notes: string; pickupPledges?: string[]; photo: Blob | null; createdAt: number };
+export type QueuedReport = { id: string; token: string; food: string; count: number; edible: number; notes: string; photo: Blob | null; createdAt: number };
 
 const DB = "fap-queue";
 const STORE = "reports";
@@ -51,7 +51,6 @@ export async function sendReport(r: QueuedReport, queued: boolean): Promise<Send
   fd.set("count", String(r.count));
   fd.set("edible", String(r.edible));
   if (r.notes) fd.set("notes", r.notes);
-  if (r.pickupPledges?.length) fd.set("pickup_pledges", JSON.stringify(r.pickupPledges));
   if (r.photo) fd.set("photo", new File([r.photo], "photo.jpg", { type: r.photo.type }));
   try {
     const res = await fetch("/api/c/submit", { method: "POST", body: fd, headers: queued ? { "x-queued": "1" } : {} });

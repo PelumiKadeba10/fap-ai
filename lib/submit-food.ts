@@ -21,11 +21,6 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
   const count = Number(form.get("count"));
   const edible = Number(form.get("edible"));
   const notes = String(form.get("notes") ?? "").trim();
-  let pickupPledgeIds: string[] = [];
-  try {
-    const raw = JSON.parse(String(form.get("pickup_pledges") ?? "[]"));
-    pickupPledgeIds = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string" && UUID.test(x)) : [];
-  } catch { pickupPledgeIds = []; }
   const rawId = String(form.get("id") ?? "");
   const id = UUID.test(rawId) ? rawId.toLowerCase() : null;
 
@@ -47,14 +42,6 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
   if (edible > count) return { ok: false, error: `Edible packs cannot be above the ${count} packs collected in this report.`, status: 400 };
   if (notes.length > 240) return { ok: false, error: "Keep notes under 240 characters.", status: 400 };
 
-  let pickupPledges: { id: string; picked_up_packs: number | null }[] = [];
-  if (pickupPledgeIds.length) {
-    const { data } = await db.from("pledges").select("id, picked_up_packs, status, batch_id, collection_point_id").in("id", pickupPledgeIds);
-    pickupPledges = (data ?? []).filter((p) => p.collection_point_id === cp.id && p.status === "picked_up" && p.batch_id == null);
-    if (pickupPledges.length !== pickupPledgeIds.length) return { ok: false, error: "One of these pickups was already reported. Refresh the page and try again.", status: 400 };
-    const confirmed = pickupPledges.reduce((n, p) => n + (p.picked_up_packs ?? 0), 0);
-    if (confirmed !== count) return { ok: false, error: `The report must contain the ${confirmed} packs confirmed from these pickups.`, status: 400 };
-  }
 
   // One submission per collection point every 10 seconds (stops double taps and spam).
   if (!opts.queued) {
@@ -76,7 +63,6 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
     ...(id ? { id } : {}),
     event_id: cp.event_id,
     collection_point_id: cp.id,
-    ...(pickupPledgeIds.length ? { source: "pickup" } : {}),
     review_status: "pending",
     food,
     qty: count,
@@ -90,14 +76,6 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
   }).select("id").single();
   if (error?.code === "23505" && id) return { ok: true, id, photoSkipped: false }; // a parallel retry got there first
   if (error || !row) return { ok: false, error: "Couldn’t send that. Check your connection and try again.", status: 500 };
-
-  if (pickupPledgeIds.length) {
-    const { data: linked } = await db.from("pledges").update({ batch_id: row.id }).in("id", pickupPledgeIds).is("batch_id", null).select("id");
-    if (!linked || linked.length !== pickupPledgeIds.length) {
-      await db.from("batches").delete().eq("id", row.id);
-      return { ok: false, error: "Those pickups changed while saving. Refresh and try again.", status: 400 };
-    }
-  }
 
   if (photo) {
     const path = photoPath(cp.event_id, row.id, photo.ext);

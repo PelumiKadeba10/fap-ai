@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getEventSites, getFoodCountSummary, getPhotoUrls, getTrips, sumBy } from "@/lib/data";
+import { getActiveEvent, getBatches, getBuses, getCollectionPoints, getDeliveries, getEventSites, getFoodCountSummary, getFoodDonations, getPhotoUrls, getPledges, getTrips, sumBy } from "@/lib/data";
 import { FoodCountSummary } from "@/components/food-count-summary";
 import { predict } from "@/lib/predict";
 import { fmtDur, fmtTime, minutesBetween, n0 } from "@/lib/format";
@@ -15,8 +15,8 @@ const TECH_BUDGET = 50_000; // ₦, platform only
 export default async function ImpactPage() {
   const event = await getActiveEvent();
   if (!event) return <EmptyState action={<Link href="/event">Set up the event</Link>}>Create the event first.</EmptyState>;
-  const [batches, deliveries, sites, hubs, trips, buses, countSummary] = await Promise.all([
-    getBatches(event.id, "approved"), getDeliveries(event.id), getEventSites(event.id), getCollectionPoints(event.id), getTrips(event.id), getBuses(event.id), getFoodCountSummary(event.id),
+  const [batches, deliveries, sites, hubs, trips, buses, countSummary, pledges, donations] = await Promise.all([
+    getBatches(event.id, "approved"), getDeliveries(event.id), getEventSites(event.id), getCollectionPoints(event.id), getTrips(event.id), getBuses(event.id), getFoodCountSummary(event.id), getPledges(event.id), getFoodDonations(event.id),
   ]);
 
   const recovered = batches.reduce((t, b) => t + b.qty, 0);
@@ -37,6 +37,8 @@ export default async function ImpactPage() {
   const perHub = hubTotals(batches, deliveries);
   const perBus = busTotals(trips, deliveries);
   const safePct = deliveredQty ? Math.round((100 * safeQty) / deliveredQty) : 0;
+  const pickupPacks = pledges.filter((p) => p.status === "picked_up").reduce((n, p) => n + (p.picked_up_packs ?? 0), 0);
+  const donatedPacks = donations.reduce((n, d) => n + d.packs, 0);
 
   const summary = deliveredQty
     ? `${event.name}: ${n0(deliveredQty)} portions reached ${siteRows.length} ${siteRows.length === 1 ? "site" : "sites"}, ${safePct}% inside the safe window, about ${fmtDur(avgMin)} from collection to delivery.`
@@ -46,6 +48,14 @@ export default async function ImpactPage() {
     <>
       <PageHeader title={`Impact · ${event.name}`} description={summary} actions={<PrintButton />} />
       <FoodCountSummary rows={countSummary} names={Object.fromEntries(hubs.map((h) => [h.id, h.name]))} />
+
+      <section>
+        <SectionHead title="Other intake statistics" aside="not used for matching or bus planning" />
+        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-7">
+          <Stat label="Pick-ups confirmed" value={n0(pickupPacks)} hint="packs confirmed at tents" />
+          <Stat label="Food donated" value={n0(donatedPacks)} hint="packs dropped at collection points" />
+        </div>
+      </section>
 
       <div className="grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-4">
         <Stat label="Portions delivered" value={n0(deliveredQty)} hint={`of ${n0(recovered)} recovered · baseline 350 at Matriculation`} />

@@ -22,18 +22,19 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
   const [origin, setOrigin] = useState(siteUrl);
   useEffect(() => { if (!siteUrl) setOrigin(window.location.origin); }, [siteUrl]);
 
-  const link = (p: CollectionPoint) => `${origin}/c/${p.token}`;
+  const reportLink = (p: CollectionPoint) => `${origin}/r/${p.token}`;
+  const intakeLink = (p: CollectionPoint) => `${origin}/i/${p.intake_token}`;
   function whatsapp(p: CollectionPoint) {
-    const text = `FAP: report the food collected at ${p.name} here. Type what you collected and tap Send: ${link(p)}`;
+    const text = `FAP: report the food collected at ${p.name} here. Type what you collected and tap Send: ${reportLink(p)}`;
     const phone = (p.lead_phone ?? "").replace(/\D/g, "").replace(/^0/, "234");
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
   }
-  async function copy(p: CollectionPoint) {
-    try { await navigator.clipboard.writeText(link(p)); setCopied(p.id); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
+  async function copy(p: CollectionPoint, kind: "report" | "intake") {
+    try { await navigator.clipboard.writeText(kind === "report" ? reportLink(p) : intakeLink(p)); setCopied(`${p.id}:${kind}`); setTimeout(() => setCopied(""), 1500); toast(true, "Link copied"); } catch { toast(false, "Couldn’t copy. Long-press the link instead."); }
   }
 
   return (
-    <SectionCard id="collection-points" title="Collection points for this event" icon={MapPinned} accent="orange" count={points.length} aside="Each lead gets a link to report food from their phone. No login needed.">
+    <SectionCard id="collection-points" title="Collection points for this event" icon={MapPinned} accent="orange" count={points.length} aside="Each point gets separate Report Food and Food Intake Record links. No login needed.">
       {points.length > 0 || adding ? (
         <table className={cardTable}>
           <thead><tr><th className="th">Collection point</th><th className="th">Location note</th><th className="th">Lead</th><th className="th">Lead phone</th><th className="th">Volunteers</th><th className="th">Link</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
@@ -45,9 +46,13 @@ export function CollectionPointsManager({ points, siteUrl }: { points: Collectio
                 onDelete={() => { if (window.confirm(`Delete “${p.name}” permanently? Its food reports will remain but lose this collection point label.`)) run("delete:" + p.id, () => deleteCollectionPoint(p.id)); }}
                 actions={p.active ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <button className={ACT} onClick={() => copy(p)}>
-                      {copied === p.id ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-                      {copied === p.id ? "Copied" : "Copy link"}
+                    <button className={ACT} onClick={() => copy(p, "report")}>
+                      {copied === `${p.id}:report` ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+                      {copied === `${p.id}:report` ? "Copied" : "Report link"}
+                    </button>
+                    <button className={ACT} onClick={() => copy(p, "intake")}>
+                      {copied === `${p.id}:intake` ? <Check className="size-4 text-ok" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+                      {copied === `${p.id}:intake` ? "Copied" : "Intake link"}
                     </button>
                     <a className={ACT} href={whatsapp(p)} target="_blank" rel="noreferrer"><MessageCircle className="size-4" aria-hidden />WhatsApp</a>
                   </div>

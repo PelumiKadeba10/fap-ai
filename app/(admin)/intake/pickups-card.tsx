@@ -57,7 +57,7 @@ export function PickupsCard({ eventId, pledges, pointNames }: { eventId: string;
           );
         })}
       </ul>
-      <p className="flex items-center gap-1.5 text-xs text-muted"><HandHeart className="size-3.5" aria-hidden />Tents appear here from the Pledged tents list in Setup. A picked-up tent’s food shows under Needs checking.</p>
+      <p className="flex items-center gap-1.5 text-xs text-muted"><HandHeart className="size-3.5" aria-hidden />Tents appear here from the Pledged tents list in Setup. Pickup quantities are statistics only; Report food submissions appear under Needs checking.</p>
     </SectionCard>
   );
 }

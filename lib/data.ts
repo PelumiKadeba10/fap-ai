@@ -4,7 +4,7 @@ import { EVENT_COOKIE } from "./event-cookie";
 import { foodWaiting } from "./food-waiting";
 import { PHOTO_BUCKET } from "./photo";
 import { ACTIVE_TRIP } from "./trip-status";
-import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, Pledge, ReviewStatus, Site, Trip, Volunteer } from "./types";
+import type { Batch, Bus, BusLink, CollectionPoint, Delivery, EventPlace, EventRow, FoodDonation, Pledge, ReviewStatus, Site, Trip, Volunteer } from "./types";
 import { foodCountSummary, type FoodCountRow } from "./food-counts";
 
 export type EventSummary = { id: string; name: string; starts_at: string };
@@ -172,6 +172,13 @@ export async function getPledges(eventId: string): Promise<Pledge[]> {
   const { data, error } = await supabase.from("pledges").select("*").eq("event_id", eventId).order("pickup_from", { nullsFirst: false }).order("created_at");
   if (error) throw error;
   return (data ?? []) as Pledge[];
+}
+
+export async function getFoodDonations(eventId: string): Promise<FoodDonation[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("food_donations").select("*").eq("event_id", eventId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as FoodDonation[];
 }
 
 export async function getFoodCountSummary(eventId: string): Promise<FoodCountRow[]> {

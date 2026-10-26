@@ -13,7 +13,7 @@ export type PickupResult = { ok: true } | { ok: false; error: string; notFound?:
 export async function applyPickupTap(db: SupabaseClient, t: PickupTap): Promise<PickupResult> {
   if (!/^[a-f0-9]{32}$/.test(t.token)) return { ok: false, error: "This link isn't valid.", notFound: true };
   if (!UUID.test(t.pledge)) return { ok: false, error: "Unknown pick-up." };
-  const { data: cp } = await db.from("collection_points").select("id, active").eq("token", t.token).maybeSingle();
+  const { data: cp } = await db.from("collection_points").select("id, active").eq("intake_token", t.token).maybeSingle();
   if (!cp || !cp.active) return { ok: false, error: "This link isn't active.", notFound: true };
   const { data: pledge } = await db.from("pledges").select("id, status").eq("id", t.pledge).eq("collection_point_id", cp.id).maybeSingle();
   if (!pledge) return { ok: false, error: "That pick-up isn't on your list." };
