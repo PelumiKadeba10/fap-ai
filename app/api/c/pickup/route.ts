@@ -8,6 +8,7 @@ const Body = z.object({
   intent: z.string().max(20),
   pledge: z.string().max(40),
   packs: z.coerce.number().optional(),
+  edible: z.coerce.number().optional(),
   note: z.string().max(300).optional(),
   at: z.string().max(40).optional(),
 });

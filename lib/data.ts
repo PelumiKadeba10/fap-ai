@@ -50,10 +50,10 @@ export type EventCounts = { pendingBatches: number; portionsWaiting: number };
 export async function getEventCounts(eventId: string): Promise<EventCounts> {
   const supabase = await createClient();
   const [b, d] = await Promise.all([
-    supabase.from("batches").select("id, qty, review_status").eq("event_id", eventId),
+      supabase.from("batches").select("id, qty, edible_packs, review_status").eq("event_id", eventId),
     supabase.from("deliveries").select("batch_id, qty").eq("event_id", eventId),
   ]);
-  const batches = (b.data ?? []) as { id: string; qty: number; review_status: ReviewStatus }[];
+    const batches = (b.data ?? []) as { id: string; qty: number; edible_packs: number | null; review_status: ReviewStatus }[];
   const deliveries = (d.data ?? []) as { batch_id: string; qty: number }[];
   const w = foodWaiting(batches, deliveries);
   return { pendingBatches: batches.filter((x) => x.review_status === "pending").length, portionsWaiting: w.portions };
@@ -176,12 +176,10 @@ export async function getPledges(eventId: string): Promise<Pledge[]> {
 
 export async function getFoodCountSummary(eventId: string): Promise<FoodCountRow[]> {
   const supabase = await createClient();
-  const [b, e, t, d, ids] = await Promise.all([
-    supabase.from("batches").select("qty, collection_point_id").eq("event_id", eventId),
-    supabase.from("edible_counts").select("collection_point_id, edible_packs").eq("event_id", eventId),
+    const [b, t, d] = await Promise.all([
+      supabase.from("batches").select("id, qty, edible_packs, collection_point_id").eq("event_id", eventId),
     supabase.from("trips").select("hub_id, loaded_packs").eq("event_id", eventId),
     supabase.from("deliveries").select("batch_id, qty, status").eq("event_id", eventId),
-    supabase.from("batches").select("id, collection_point_id").eq("event_id", eventId),
   ]);
-  return foodCountSummary(b.data ?? [], e.data ?? [], t.data ?? [], d.data ?? [], ids.data ?? []);
+  return foodCountSummary(b.data ?? [], t.data ?? [], d.data ?? []);
 }

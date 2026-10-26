@@ -28,12 +28,13 @@ export async function saveLoadedPacks(db: SupabaseClient, token: string, tripId:
   if (trip.status !== "planned" && trip.status !== "loading") return { ok: false, error: "This trip cannot be loaded now." };
   const { data: deliveries } = await db.from("deliveries").select("qty, batch_id").eq("trip_id", trip.id);
   const batchIds = [...new Set((deliveries ?? []).map((d) => d.batch_id))];
-  const { data: batches } = await db.from("batches").select("id, collection_point_id").in("id", batchIds.length ? batchIds : ["00000000-0000-0000-0000-000000000000"]);
+  const { data: batches } = await db.from("batches").select("id, collection_point_id, edible_packs").in("id", batchIds.length ? batchIds : ["00000000-0000-0000-0000-000000000000"]);
   const hubId = trip.hub_id;
-  const { data: edibleRows } = hubId ? await db.from("edible_counts").select("edible_packs").eq("event_id", trip.event_id).eq("collection_point_id", hubId).maybeSingle() : { data: null };
+  const hubBatches = (batches ?? []).filter((b) => (b.collection_point_id ?? null) === hubId);
+  const edible = hubBatches.length && hubBatches.every((b) => b.edible_packs != null) ? hubBatches.reduce((n, b) => n + (b.edible_packs ?? 0), 0) : null;
   const { data: otherTrips } = await db.from("trips").select("loaded_packs").eq("event_id", trip.event_id).eq("hub_id", hubId).neq("id", trip.id);
   const alreadyLoaded = (otherTrips ?? []).reduce((n, t) => n + (t.loaded_packs ?? 0), 0);
-  const error = validateLoaded(edibleRows?.edible_packs ?? null, alreadyLoaded, loaded);
+  const error = validateLoaded(edible, alreadyLoaded, loaded);
   if (error) return { ok: false, error };
   // A trip is planned from one hub; this guards old/manual data from being loaded against another point.
   if (batches?.some((b) => (b.collection_point_id ?? null) !== hubId)) return { ok: false, error: "This trip contains food from another collection point." };

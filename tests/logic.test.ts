@@ -94,16 +94,16 @@ test("status moves follow the volunteer flow", () => {
 test("food waiting counts approved portions not yet in deliveries and ignores unchecked batches", async () => {
   const { foodWaiting } = await import("../lib/food-waiting");
   const batches = [
-    { id: "a", qty: 100, review_status: "approved" },
-    { id: "b", qty: 80, review_status: "approved" },
-    { id: "c", qty: 50, review_status: "pending" },
-    { id: "d", qty: 20 },
+    { id: "a", qty: 100, edible_packs: 100, review_status: "approved" },
+    { id: "b", qty: 80, edible_packs: 80, review_status: "approved" },
+    { id: "c", qty: 50, edible_packs: 50, review_status: "pending" },
+    { id: "d", qty: 20, edible_packs: 20 },
   ];
   const deliveries = [{ batch_id: "a", qty: 40 }, { batch_id: "a", qty: 10 }, { batch_id: "b", qty: 80 }];
   assert.deepEqual(foodWaiting(batches, deliveries), { portions: 70, batches: 2 });
   assert.deepEqual(foodWaiting([], []), { portions: 0, batches: 0 });
   // Over-allocated batches never go negative.
-  assert.deepEqual(foodWaiting([{ id: "a", qty: 10 }], [{ batch_id: "a", qty: 30 }]), { portions: 0, batches: 0 });
+  assert.deepEqual(foodWaiting([{ id: "a", qty: 10, edible_packs: 10 }], [{ batch_id: "a", qty: 30 }]), { portions: 0, batches: 0 });
 });
 
 test("photo validation accepts jpg/png/webp up to 4 MB and rejects the rest", async () => {

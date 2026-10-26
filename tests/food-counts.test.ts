@@ -14,11 +14,9 @@ test("loaded cannot exceed edible", () => {
 
 test("food count summary totals per collection point and overall", () => {
   const rows = foodCountSummary(
-    [{ qty: 100, collection_point_id: "A" }, { qty: 50, collection_point_id: "B" }],
-    [{ collection_point_id: "A", edible_packs: 80 }, { collection_point_id: "B", edible_packs: 40 }],
+    [{ id: "a", qty: 100, edible_packs: 80, collection_point_id: "A" }, { id: "b", qty: 50, edible_packs: 40, collection_point_id: "B" }],
     [{ hub_id: "A", loaded_packs: 60 }, { hub_id: "B", loaded_packs: 30 }],
     [{ batch_id: "a", qty: 50, status: "delivered" }, { batch_id: "b", qty: 20, status: "on_the_way" }],
-    [{ id: "a", collection_point_id: "A" }, { id: "b", collection_point_id: "B" }],
   );
   assert.deepEqual(rows, [
     { hubId: "A", collected: 100, edible: 80, loaded: 60, delivered: 50, discarded: 20, notLoaded: 20 },

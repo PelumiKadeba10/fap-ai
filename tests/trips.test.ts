@@ -118,10 +118,10 @@ test("trip status rules, stop grouping and free buses", () => {
 
 test("food waiting is split by hub and ignores unchecked food", () => {
   const batches = [
-    { id: "a", qty: 100, review_status: "approved", collection_point_id: "A" },
-    { id: "b", qty: 50, review_status: "approved", collection_point_id: "B" },
-    { id: "c", qty: 80, review_status: "pending", collection_point_id: "B" },
-    { id: "d", qty: 30, review_status: "approved", collection_point_id: null },
+    { id: "a", qty: 100, edible_packs: 100, review_status: "approved", collection_point_id: "A" },
+    { id: "b", qty: 50, edible_packs: 50, review_status: "approved", collection_point_id: "B" },
+    { id: "c", qty: 80, edible_packs: 80, review_status: "pending", collection_point_id: "B" },
+    { id: "d", qty: 30, edible_packs: 30, review_status: "approved", collection_point_id: null },
   ];
   assert.deepEqual(waitingByHub(batches, [{ batch_id: "a", qty: 40 }]), {
     A: { portions: 60, batches: 1 }, B: { portions: 50, batches: 1 }, none: { portions: 30, batches: 1 },

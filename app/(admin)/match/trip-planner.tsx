@@ -57,7 +57,7 @@ export function TripPlanner({ batches, sites, hubs, buses, busesOut, tripNumbers
 
   const compute = (at: Date) => {
     const matched = runMatching(
-      batches.map((b) => ({ id: b.id, category: b.category, collected_at: b.collected_at, available: b.qty - (sentByBatch[b.id] ?? 0) })),
+      batches.map((b) => ({ id: b.id, category: b.category, collected_at: b.collected_at, available: (b.edible_packs ?? 0) - (sentByBatch[b.id] ?? 0) })),
       sites.map((s) => ({ ...s, km: Number(s.km), alreadyAllocated: sentBySite[s.id] ?? 0 })),
       at,
     );

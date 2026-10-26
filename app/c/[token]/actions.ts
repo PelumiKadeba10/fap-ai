@@ -39,7 +39,7 @@ export async function pickupAction(form: FormData) {
   if (!/^[a-f0-9]{32}$/.test(token)) redirect("/c/invalid");
   const intent = String(form.get("intent") ?? "");
   const r = await applyPickupTap(createAdminClient(), {
-    token, intent, pledge: String(form.get("pledge") ?? ""), packs: Number(String(form.get("packs") ?? "").trim()), note: String(form.get("note") ?? ""),
+    token, intent, pledge: String(form.get("pledge") ?? ""), packs: Number(String(form.get("packs") ?? "").trim()), edible: Number(String(form.get("edible") ?? "").trim()), note: String(form.get("note") ?? ""),
   });
   if (r.ok) redirect(`/c/${token}?tab=pickups&done=${intent}`);
   if (r.notFound) redirect(`/c/${token}`);

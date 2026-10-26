@@ -7,13 +7,12 @@ import { PLEDGE_STATUS, byPickupTime, isLate } from "@/lib/pledges";
 import type { Pledge } from "@/lib/types";
 import { PickupButtons, PickupStatus } from "./pickup-actions";
 import { ReportForm } from "./report-form";
-import { EdibleForm } from "./edible-form";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Report food · FAP AI", robots: { index: false }, manifest: "/manifest.webmanifest" };
 
 type Point = { id: string; event_id: string; name: string; location_note: string | null; active: boolean; events: { name: string } | null };
-type Sub = { id: string; food: string; qty: number; notes: string | null; review_status: "pending" | "approved"; photo_path: string | null; created_at: string };
+type Sub = { id: string; food: string; qty: number; edible_packs: number | null; notes: string | null; review_status: "pending" | "approved"; photo_path: string | null; created_at: string };
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -51,15 +50,12 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const pledges = byPickupTime(pledgeRows ?? []);
   const openCount = pledges.filter((p) => p.status === "pledged" || p.status === "on_the_way").length;
 
-  const [{ data: subs }, sent, edibleRow, collectedRows] = await Promise.all([
-    db.from("batches").select("id, food, qty, notes, review_status, photo_path, created_at").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).limit(5).returns<Sub[]>(),
+  const [{ data: subs }, sent] = await Promise.all([
+    db.from("batches").select("id, food, qty, edible_packs, notes, review_status, photo_path, created_at").eq("collection_point_id", cp.id).order("created_at", { ascending: false }).limit(5).returns<Sub[]>(),
     ok && UUID.test(ok)
-      ? db.from("batches").select("id, food, qty, notes, review_status, photo_path, created_at").eq("id", ok).eq("collection_point_id", cp.id).maybeSingle<Sub>()
+      ? db.from("batches").select("id, food, qty, edible_packs, notes, review_status, photo_path, created_at").eq("id", ok).eq("collection_point_id", cp.id).maybeSingle<Sub>()
       : Promise.resolve({ data: null }),
-    db.from("edible_counts").select("edible_packs, recorded_at").eq("event_id", cp.event_id).eq("collection_point_id", cp.id).maybeSingle<{ edible_packs: number; recorded_at: string }>(),
-    db.from("batches").select("qty").eq("collection_point_id", cp.id),
   ]);
-  const collected = (collectedRows.data ?? []).reduce((n, b) => n + b.qty, 0);
   const banner = sent.data;
   const unclear = banner?.notes === "Needs a quantity";
 
@@ -99,7 +95,6 @@ export default async function CollectionPage({ params, searchParams }: { params:
 
       {!pickupsTab && (<>
       <ReportForm token={token} />
-      <EdibleForm token={token} collected={collected} current={edibleRow.data?.edible_packs ?? null} />
 
       <section aria-labelledby="recent">
         <h2 id="recent" className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">Your last sends</h2>
@@ -110,7 +105,8 @@ export default async function CollectionPage({ params, searchParams }: { params:
             {subs.map((s) => (
               <li key={s.id} className="flex items-start justify-between gap-3 border-b border-line py-3">
                 <div className="min-w-0">
-                  <p className="font-semibold break-words">{s.qty} × {s.food}{s.photo_path && <Camera className="ml-1.5 inline size-4 align-text-bottom text-[#4a525c]" aria-label="Has a photo" role="img" />}</p>
+                  <p className="font-semibold break-words">{s.qty} collected · {s.edible_packs ?? "?"} edible × {s.food}{s.photo_path && <Camera className="ml-1.5 inline size-4 align-text-bottom text-[#4a525c]" aria-label="Has a photo" role="img" />}</p>
+                  {s.notes && <p className="mt-1 break-words text-sm text-[#4a525c]">Note: {s.notes}</p>}
                   <p className="font-mono text-sm text-[#4a525c]">{fmtTime(s.created_at)}</p>
                 </div>
                 <span className={`shrink-0 text-sm font-semibold ${s.review_status === "approved" ? "text-ok" : "text-warn"}`}>

@@ -7,7 +7,7 @@ export interface FoodWaiting {
 
 /** Food ready for matching: approved batches minus what deliveries already take. Unchecked food is ignored. */
 export function foodWaiting(
-  batches: { id: string; qty: number; review_status?: string }[],
+  batches: { id: string; qty: number; edible_packs?: number | null; review_status?: string }[],
   deliveries: { batch_id: string; qty: number }[],
 ): FoodWaiting {
   const sent = new Map<string, number>();
@@ -16,7 +16,7 @@ export function foodWaiting(
   let count = 0;
   for (const b of batches) {
     if ((b.review_status ?? "approved") !== "approved") continue;
-    const left = Math.max(0, b.qty - (sent.get(b.id) ?? 0));
+    const left = Math.max(0, (b.edible_packs ?? 0) - (sent.get(b.id) ?? 0));
     if (left > 0) { portions += left; count++; }
   }
   return { portions, batches: count };
@@ -24,7 +24,7 @@ export function foodWaiting(
 
 /** Same as foodWaiting, split by the hub (collection point) each batch sits in. Food without a hub goes under "none". */
 export function waitingByHub(
-  batches: { id: string; qty: number; review_status?: string; collection_point_id?: string | null }[],
+  batches: { id: string; qty: number; edible_packs?: number | null; review_status?: string; collection_point_id?: string | null }[],
   deliveries: { batch_id: string; qty: number }[],
 ): Record<string, FoodWaiting> {
   const out: Record<string, FoodWaiting> = {};

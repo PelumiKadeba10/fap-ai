@@ -60,13 +60,14 @@ export function PickupButtons({ token, pledge }: { token: string; pledge: { id: 
     if (busy) return;
     const fd = new FormData(e.currentTarget);
     const packs = Number(String(fd.get("packs") ?? "").trim());
+    const edible = Number(String(fd.get("edible") ?? "").trim());
     const note = String(fd.get("note") ?? "").trim();
     const label = intent === "on_the_way" ? `On my way: ${pledge.tent}` : intent === "no_food" ? `No food: ${pledge.tent}` : `Picked up ${packs} packs: ${pledge.tent}`;
     setBusy(intent);
     try {
       await enqueueTap({
         id: newTapId(), scope: token, endpoint: ENDPOINT, at: new Date().toISOString(), label,
-        payload: { token, intent, pledge: pledge.id, ...(intent === "picked_up" ? { packs } : {}), ...(note ? { note } : {}) },
+        payload: { token, intent, pledge: pledge.id, ...(intent === "picked_up" ? { packs, edible } : {}), ...(note ? { note } : {}) },
       });
       if (await flushTaps(token)) router.refresh();
     } catch {
@@ -100,6 +101,8 @@ export function PickupButtons({ token, pledge }: { token: string; pledge: { id: 
         {hidden("picked_up")}
         <label className="text-base font-semibold" htmlFor={"packs-" + pledge.id}>Packs picked up</label>
         <input id={"packs-" + pledge.id} name="packs" type="number" inputMode="numeric" min={1} required defaultValue={pledge.packs ?? undefined} className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-xl text-ink" />
+        <label className="text-base font-semibold" htmlFor={"edible-" + pledge.id}>Edible packs after sorting</label>
+        <input id={"edible-" + pledge.id} name="edible" type="number" inputMode="numeric" min={0} required className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-xl text-ink" />
         <label className="text-base font-semibold" htmlFor={"note-" + pledge.id}>Note <span className="font-normal text-[#4a525c]">(optional)</span></label>
         <input id={"note-" + pledge.id} name="note" maxLength={120} className="min-h-14 w-full rounded-xl border-2 border-ink bg-white px-3 text-lg text-ink" />
         <button disabled={!!busy} aria-busy={busy === "picked_up"} className={`${BTN} inline-flex items-center justify-center gap-2 bg-ink text-white`}>

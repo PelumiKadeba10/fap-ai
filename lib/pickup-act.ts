@@ -6,7 +6,7 @@ const UUID = /^[0-9a-f-]{36}$/i;
 const OPEN = ["pledged", "on_the_way"];
 const STALE = "This pick-up was just updated. The list below is up to date.";
 
-export type PickupTap = { token: string; intent: string; pledge: string; packs?: number; note?: string; at?: string };
+export type PickupTap = { token: string; intent: string; pledge: string; packs?: number; edible?: number; note?: string; at?: string };
 export type PickupResult = { ok: true } | { ok: false; error: string; notFound?: boolean };
 
 /**
@@ -40,7 +40,9 @@ export async function applyPickupTap(db: SupabaseClient, t: PickupTap): Promise<
   }
   if (t.intent === "picked_up") {
     const packs = Number(t.packs);
+    const edible = Number(t.edible);
     if (!Number.isInteger(packs) || packs < 1 || packs > 100000) return { ok: false, error: "Enter how many packs you picked up. If there was no food, tap No food." };
+    if (!Number.isInteger(edible) || edible < 0 || edible > packs) return { ok: false, error: `Enter edible packs from this pick-up (0 to ${packs}).` };
     if (from === "picked_up") return { ok: true };
     if (!OPEN.includes(from)) return { ok: false, error: STALE };
     const at = tapTime(t.at);
@@ -54,6 +56,7 @@ export async function applyPickupTap(db: SupabaseClient, t: PickupTap): Promise<
       source: "pickup",
       food: `Pick-up: ${pledge.tent_name}`.slice(0, 80),
       qty: packs,
+      edible_packs: edible,
       category: "cooked_meal",
       collected_at: at,
       location: cp.name.slice(0, 60),

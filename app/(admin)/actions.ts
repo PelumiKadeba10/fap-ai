@@ -404,7 +404,7 @@ export async function approvePlan(): Promise<Result & { created?: number }> {
   const sentBySite = sumBy(deliveries, (d) => d.site_id, (d) => d.qty);
   const now = new Date();
   const { allocations } = runMatching(
-    batches.map((b) => ({ id: b.id, category: b.category, collected_at: b.collected_at, available: b.qty - (sentByBatch.get(b.id) ?? 0) })),
+    batches.map((b) => ({ id: b.id, category: b.category, collected_at: b.collected_at, available: (b.edible_packs ?? 0) - (sentByBatch.get(b.id) ?? 0) })),
     sites.map((s) => ({ ...s, alreadyAllocated: sentBySite.get(s.id) ?? 0 })),
     now,
   );
@@ -452,7 +452,7 @@ export async function approveTrips(busIds: (string | null)[]): Promise<Result & 
   const sentBySite = sumBy(deliveries, (d) => d.site_id, (d) => d.qty);
   const now = new Date();
   const { allocations } = runMatching(
-    batches.map((b) => ({ id: b.id, category: b.category, collected_at: b.collected_at, available: b.qty - (sentByBatch.get(b.id) ?? 0) })),
+    batches.map((b) => ({ id: b.id, category: b.category, collected_at: b.collected_at, available: (b.edible_packs ?? 0) - (sentByBatch.get(b.id) ?? 0) })),
     sites.map((s) => ({ ...s, km: Number(s.km), alreadyAllocated: sentBySite.get(s.id) ?? 0 })),
     now,
   );

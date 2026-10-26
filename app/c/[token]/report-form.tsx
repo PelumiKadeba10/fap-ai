@@ -85,6 +85,7 @@ export function ReportForm({ token }: { token: string }) {
     const photo = fd.get("photo");
     const report: QueuedReport = {
       id: newId(), token, food: String(fd.get("food") ?? "").trim(), count: Number(fd.get("count")),
+      edible: Number(fd.get("edible")), notes: String(fd.get("notes") ?? "").trim(),
       photo: photo instanceof File && photo.size > 0 ? photo : null, createdAt: Date.now(),
     };
     setBusy(true);
@@ -135,6 +136,11 @@ export function ReportForm({ token }: { token: string }) {
         <input id="food" name="food" required maxLength={80} placeholder="e.g. Jollof rice and chicken" className={INPUT} />
         <label htmlFor="count" className="text-lg font-semibold">Number of boxes / cartons</label>
         <input id="count" name="count" type="number" inputMode="numeric" required min={1} max={100000} step={1} placeholder="e.g. 20" className={`${INPUT} font-mono`} />
+        <label htmlFor="edible" className="text-lg font-semibold">Edible packs after sorting</label>
+        <p className="text-base text-[#4a525c]">Count the edible packs from this report only.</p>
+        <input id="edible" name="edible" type="number" inputMode="numeric" required min={0} step={1} placeholder="e.g. 18" className={`${INPUT} font-mono`} />
+        <label htmlFor="notes" className="text-lg font-semibold">Notes <span className="font-normal text-[#4a525c]">(optional)</span></label>
+        <textarea id="notes" name="notes" maxLength={240} rows={2} placeholder="Anything the coordinator should know" className="w-full rounded-xl border-2 border-ink bg-white px-3 py-3 text-lg text-ink" />
         <PhotoInput key={photoKey} />
         <button disabled={busy} aria-busy={busy} className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-4 text-xl font-semibold text-white active:opacity-80 disabled:opacity-70">
           {busy && <Spinner />}{busy ? "Sending…" : "Send"}

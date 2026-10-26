@@ -56,6 +56,8 @@ export interface Batch {
   event_id: string;
   food: string;
   qty: number;
+  /** Edible quantity recorded for this report; null means an old report has not been sorted yet. */
+  edible_packs: number | null;
   category: Category;
   collected_at: string;
   location: string;

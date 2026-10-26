@@ -11,7 +11,7 @@ export type SubmitResult =
   | { ok: false; error: string; status: 400 | 404 | 429 | 500 };
 
 /**
- * `form` has token, food, count, optional photo and optional `id` (a client-made UUID).
+ * `form` has token, food, count, edible, optional notes/photo and optional `id` (a client-made UUID).
  * With an `id`, sending the same report twice saves it once, so a queued report can be retried safely.
  * `queued` skips the 10 second limit: a phone coming back online sends its whole queue at once.
  */
@@ -19,6 +19,8 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
   const token = String(form.get("token") ?? "");
   const food = String(form.get("food") ?? "").trim();
   const count = Number(form.get("count"));
+  const edible = Number(form.get("edible"));
+  const notes = String(form.get("notes") ?? "").trim();
   const rawId = String(form.get("id") ?? "");
   const id = UUID.test(rawId) ? rawId.toLowerCase() : null;
 
@@ -36,6 +38,9 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
   if (food.length < 1) return { ok: false, error: "Type what you collected first.", status: 400 };
   if (food.length > 80) return { ok: false, error: "That name is too long. Keep it under 80 characters.", status: 400 };
   if (!Number.isInteger(count) || count < 1 || count > 100_000) return { ok: false, error: "Enter the number of boxes or cartons.", status: 400 };
+  if (!Number.isInteger(edible) || edible < 0) return { ok: false, error: "Enter the edible packs after sorting.", status: 400 };
+  if (edible > count) return { ok: false, error: `Edible packs cannot be above the ${count} packs collected in this report.`, status: 400 };
+  if (notes.length > 240) return { ok: false, error: "Keep notes under 240 characters.", status: 400 };
 
   // One submission per collection point every 10 seconds (stops double taps and spam).
   if (!opts.queued) {
@@ -60,10 +65,12 @@ export async function saveFoodReport(form: FormData, opts: { queued?: boolean } 
     review_status: "pending",
     food,
     qty: count,
+    edible_packs: edible,
     category: guessCategory(food),
     collected_at: new Date().toISOString(),
     location: cp.name.slice(0, 60),
     raw_message: `${count} boxes/cartons of ${food}`,
+    notes: notes || null,
     parsed_by: "manual",
   }).select("id").single();
   if (error?.code === "23505" && id) return { ok: true, id, photoSkipped: false }; // a parallel retry got there first
