@@ -28,9 +28,9 @@ export function DonationForm({ token, total }: { token: string; total: number })
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 5000);
       try {
-        // A 4xx/5xx response still proves the app server is reachable; only a
-        // failed request should show the offline message.
-        await fetch(ENDPOINT, { method: "HEAD", cache: "no-store", signal: controller.signal });
+        // Check a dedicated lightweight route so browser online flags and
+        // unsupported HEAD requests cannot produce a false offline warning.
+        await fetch(ENDPOINT, { method: "GET", cache: "no-store", signal: controller.signal });
         if (active) setOnline(true);
       } catch {
         if (active) setOnline(false);
