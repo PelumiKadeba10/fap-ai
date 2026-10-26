@@ -685,6 +685,9 @@ export async function setPacksPerCarton(value: number | null): Promise<Result> {
 const PledgeInput = z.object({
   id: z.string().uuid().optional(),
   tent_name: z.string().trim().min(1).max(60),
+  student_name: z.string().trim().min(1).max(120),
+  tent_number: z.string().trim().min(1).max(30),
+  matric_number: z.string().trim().min(1).max(30),
   contact_name: z.string().trim().max(60).nullable().optional(),
   contact_phone: z.string().trim().max(30).nullable().optional(),
   pledged_packs: z.coerce.number().int().min(0).max(100000).nullable().optional(),
@@ -695,7 +698,7 @@ const PledgeInput = z.object({
 
 export async function savePledge(input: z.input<typeof PledgeInput>): Promise<Result> {
   const parsed = PledgeInput.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "A pledged tent needs a name." };
+  if (!parsed.success) return { ok: false, error: "Student name, tent number and matric number are required." };
   const event = await getActiveEvent();
   if (!event) return { ok: false, error: "Create the event on the Event tab first." };
   const supabase = await db();
@@ -723,7 +726,7 @@ export async function importPledges(text: string, collectionPointId: string | nu
   const timeOk = pickupFrom === null || z.string().datetime().safeParse(pickupFrom).success;
   if (!pointOk || !timeOk) return { ok: false, error: "Choose a collection point and a valid pick-up time." };
   const list = parsePledgeList(String(text).slice(0, 20000));
-  if (!list.length) return { ok: false, error: "Paste one tent per line: name, phone, packs." };
+  if (!list.length) return { ok: false, error: "Paste one tent per line: student name, tent number, matric number, phone, packs." };
   if (list.length > 200) return { ok: false, error: "That is more than 200 lines. Paste fewer at a time." };
   const event = await getActiveEvent();
   if (!event) return { ok: false, error: "Create the event on the Event tab first." };

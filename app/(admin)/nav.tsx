@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, CalendarDays, FileBarChart, Inbox, Route, Settings } from "lucide-react";
+import { Activity, CalendarDays, FileBarChart, History, Inbox, Route, Settings } from "lucide-react";
 
 export const TABS = [
   ["/setup", "Setup", Settings],
@@ -11,6 +11,7 @@ export const TABS = [
   ["/match", "Plan trips", Route],
   ["/live", "Live", Activity],
   ["/impact", "Impact", FileBarChart],
+  ["/audit", "Audit log", History],
 ] as const;
 
 /** Waiting work, shown as badges: batches to check on Food intake, approved portions not yet on a trip. */

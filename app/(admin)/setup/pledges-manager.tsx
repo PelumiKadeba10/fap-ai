@@ -10,19 +10,19 @@ import { EmptyState, Pill, SectionCard, SectionHead, cardTable } from "../ui";
 import { useAction } from "../use-action";
 import { useToast } from "../toast";
 
-type Draft = { tent_name: string; contact_name: string; contact_phone: string; pledged_packs: string; pickup_from: string; collection_point_id: string; notes: string };
+type Draft = { tent_name: string; student_name: string; tent_number: string; matric_number: string; contact_name: string; contact_phone: string; pledged_packs: string; pickup_from: string; collection_point_id: string; notes: string };
 const toDraft = (p: Pledge): Draft => ({
-  tent_name: p.tent_name, contact_name: p.contact_name ?? "", contact_phone: p.contact_phone ?? "",
+  tent_name: p.tent_name, student_name: p.student_name ?? p.contact_name ?? "", tent_number: p.tent_number ?? p.tent_name, matric_number: p.matric_number ?? "", contact_name: p.contact_name ?? "", contact_phone: p.contact_phone ?? "",
   pledged_packs: p.pledged_packs == null ? "" : String(p.pledged_packs),
   pickup_from: p.pickup_from ? toLagosInput(p.pickup_from) : "", collection_point_id: p.collection_point_id ?? "", notes: p.notes ?? "",
 });
 const toInput = (d: Draft) => ({
-  tent_name: d.tent_name, contact_name: d.contact_name.trim() || null, contact_phone: d.contact_phone.trim() || null,
+  tent_name: d.tent_number.trim(), student_name: d.student_name.trim(), tent_number: d.tent_number.trim(), matric_number: d.matric_number.trim(), contact_name: d.contact_name.trim() || null, contact_phone: d.contact_phone.trim() || null,
   pledged_packs: d.pledged_packs.trim() === "" ? null : Number(d.pledged_packs),
   pickup_from: d.pickup_from ? fromLagosInput(d.pickup_from) : null,
   collection_point_id: d.collection_point_id || null, notes: d.notes.trim() || null,
 });
-const EMPTY: Draft = { tent_name: "", contact_name: "", contact_phone: "", pledged_packs: "", pickup_from: "", collection_point_id: "", notes: "" };
+const EMPTY: Draft = { tent_name: "", student_name: "", tent_number: "", matric_number: "", contact_name: "", contact_phone: "", pledged_packs: "", pickup_from: "", collection_point_id: "", notes: "" };
 
 /** Tents that promised food. Each one is collected at its pick-up time and brought to a collection point. */
 export function PledgesManager({ pledges, points, defaultPickup }: { pledges: Pledge[]; points: CollectionPoint[]; defaultPickup: string }) {
@@ -40,7 +40,7 @@ export function PledgesManager({ pledges, points, defaultPickup }: { pledges: Pl
 
       {pledges.length > 0 || adding ? (
         <table className={cardTable}>
-          <thead><tr><th className="th">Tent</th><th className="th">Contact</th><th className="th">Phone</th><th className="th">Packs</th><th className="th">Pick up from</th><th className="th">Collection point</th><th className="th">Status</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th className="th">Student</th><th className="th">Tent no.</th><th className="th">Matric no.</th><th className="th">Contact</th><th className="th">Phone</th><th className="th">Packs</th><th className="th">Pick up from</th><th className="th">Collection point</th><th className="th">Status</th><th className="th"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {byPickupTime(pledges).map((p) => (
               <PledgeRow key={p.id} pledge={p} points={active} pending={pending} saving={busy("save:" + p.id)} removing={busy("remove:" + p.id)}
@@ -68,9 +68,9 @@ export function PledgesManager({ pledges, points, defaultPickup }: { pledges: Pl
 
       {pasting && (
         <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
-          <SectionHead title="Paste a list" aside="one tent per line: Tent name, phone, packs" />
+          <SectionHead title="Paste a list" aside="one tent per line: student name, tent number, matric number, phone, packs" />
           <textarea className="input min-h-32 font-mono text-sm" value={text} onChange={(e) => setText(e.target.value)} aria-label="Pledged tents, one per line"
-            placeholder={"Tent 4, 08031234567, 200\nHall B tent, 08098765432, 150"} />
+            placeholder={"Ada Okafor, Tent 4, CU/24/1234, 08031234567, 200\nBola James, Hall B, CU/24/5678, 08098765432, 150"} />
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="label">Collection point
               <select className="input" value={pastePoint} onChange={(e) => setPastePoint(e.target.value)}>
@@ -99,13 +99,15 @@ function PledgeRow({ pledge, points, pending, saving, removing, onSave, onRemove
   const isNew = !pledge;
   const [d, setD] = useState<Draft>(pledge ? toDraft(pledge) : EMPTY);
   const [confirm, setConfirm] = useState(false);
-  const commit = () => { if (pledge && d.tent_name.trim() && JSON.stringify(toDraft(pledge)) !== JSON.stringify(d)) onSave(d); };
-  const nm = d.tent_name || "new tent";
+  const commit = () => { if (pledge && d.student_name.trim() && d.tent_number.trim() && d.matric_number.trim() && JSON.stringify(toDraft(pledge)) !== JSON.stringify(d)) onSave(d); };
+  const nm = d.tent_number || "new tent";
   const st = pledge ? PLEDGE_STATUS[pledge.status] : null;
 
   return (
     <tr className={isNew ? "bg-soft" : ""}>
-      <td className="cell max-md:col-span-2" data-label="Tent"><input aria-label="Tent name" className="input-quiet min-w-32 font-medium" value={d.tent_name} placeholder="e.g. Tent 4" autoFocus={isNew} onChange={(e) => setD({ ...d, tent_name: e.target.value })} onBlur={commit} /></td>
+      <td className="cell max-md:col-span-2" data-label="Student"><input aria-label="Student name" className="input-quiet min-w-32 font-medium" value={d.student_name} placeholder="Student name" autoFocus={isNew} onChange={(e) => setD({ ...d, student_name: e.target.value })} onBlur={commit} /></td>
+      <td className="cell" data-label="Tent no."><input aria-label={`Tent number for ${nm}`} className="input-quiet min-w-24" value={d.tent_number} placeholder="Tent 4" onChange={(e) => setD({ ...d, tent_number: e.target.value, tent_name: e.target.value })} onBlur={commit} /></td>
+      <td className="cell" data-label="Matric no."><input aria-label={`Matric number for ${nm}`} className="input-quiet min-w-28 font-mono" value={d.matric_number} placeholder="Matric no." onChange={(e) => setD({ ...d, matric_number: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Contact"><input aria-label={`Contact name for ${nm}`} className="input-quiet min-w-28" value={d.contact_name} placeholder="Name" onChange={(e) => setD({ ...d, contact_name: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Phone"><input aria-label={`Phone for ${nm}`} className="input-quiet min-w-32 font-mono" type="tel" value={d.contact_phone} placeholder="0803…" onChange={(e) => setD({ ...d, contact_phone: e.target.value })} onBlur={commit} /></td>
       <td className="cell" data-label="Packs"><input aria-label={`Pledged packs for ${nm}`} className="input-quiet w-20 font-mono max-md:w-full" type="number" inputMode="numeric" min={0} value={d.pledged_packs} placeholder="0" onChange={(e) => setD({ ...d, pledged_packs: e.target.value })} onBlur={commit} /></td>
@@ -127,7 +129,7 @@ function PledgeRow({ pledge, points, pending, saving, removing, onSave, onRemove
       <td className="cell" data-label="">
         {isNew ? (
           <div className="flex items-center gap-3">
-            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.tent_name.trim()} aria-busy={saving} onClick={() => onSave(d)}>{saving && <Spinner />}{saving ? "Saving…" : "Save"}</button>
+            <button className="btn-dark min-h-9 py-1.5" disabled={pending || !d.student_name.trim() || !d.tent_number.trim() || !d.matric_number.trim()} aria-busy={saving} onClick={() => onSave(d)}>{saving && <Spinner />}{saving ? "Saving…" : "Save"}</button>
             <button className="link" onClick={onRemove}>Cancel</button>
           </div>
         ) : confirm ? (

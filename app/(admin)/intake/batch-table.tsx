@@ -39,8 +39,8 @@ export function BatchTable({ batches, sent, photos }: { batches: Batch[]; sent: 
                   <td className="cell font-mono" data-label="Safe for">{u.minutesLeft > 0 ? fmtDur(u.minutesLeft) : <span className="font-sans font-medium text-crit">Expired</span>}</td>
                   <td className="cell" data-label="">
                     {out === 0 && (
-                      <button className="link-danger inline-flex items-center gap-1.5" disabled={pending} aria-busy={busy(b.id)} aria-label={`Remove ${b.food}`} onClick={() => run(b.id, () => removeBatch(b.id))}>
-                        {busy(b.id) && <Spinner className="size-3.5" />}{busy(b.id) ? "Removing…" : "Remove"}
+                      <button className="link-danger inline-flex items-center gap-1.5" disabled={pending} aria-busy={busy(b.id)} aria-label={`Delete ${b.food}`} onClick={() => { if (window.confirm(`Delete this ${b.food} batch?`)) run(b.id, () => removeBatch(b.id)); }}>
+                        {busy(b.id) && <Spinner className="size-3.5" />}{busy(b.id) ? "Deleting…" : "Delete"}
                       </button>
                     )}
                   </td>

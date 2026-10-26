@@ -160,6 +160,9 @@ export interface Pledge {
   id: string;
   event_id: string;
   tent_name: string;
+  student_name: string | null;
+  tent_number: string | null;
+  matric_number: string | null;
   contact_name: string | null;
   contact_phone: string | null;
   pledged_packs: number | null;

@@ -102,8 +102,8 @@ test("pledged tents: late after 30 minutes, counts, and pasted lists", () => {
   assert.equal(isLate({ status: "pledged", pickup_from: null }, now), false);
   assert.deepEqual(pledgeCounts([{ status: "pledged" }, { status: "pledged" }, { status: "picked_up" }]), { pledged: 2, on_the_way: 0, picked_up: 1, no_food: 0 });
   assert.deepEqual(parsePledgeList("Tent 4, 0803 123 4567, 200\n\nHall B\nTent C, , 50 packs\n"), [
-    { tent_name: "Tent 4", contact_phone: "0803 123 4567", pledged_packs: 200 },
-    { tent_name: "Hall B", contact_phone: null, pledged_packs: null },
-    { tent_name: "Tent C", contact_phone: null, pledged_packs: 50 },
+    { tent_name: "Tent 4", student_name: "Tent 4", tent_number: "Tent 4", matric_number: null, contact_phone: "0803 123 4567", pledged_packs: 200 },
+    { tent_name: "Hall B", student_name: "Hall B", tent_number: "Hall B", matric_number: null, contact_phone: null, pledged_packs: null },
+    { tent_name: "Tent C", student_name: "Tent C", tent_number: "Tent C", matric_number: null, contact_phone: null, pledged_packs: 50 },
   ]);
 });

@@ -33,21 +33,29 @@ export function byPickupTime<T extends Pick<Pledge, "pickup_from" | "tent_name">
 
 export interface PastedPledge {
   tent_name: string;
+  student_name: string;
+  tent_number: string;
+  matric_number: string | null;
   contact_phone: string | null;
   pledged_packs: number | null;
 }
 
-/** One tent per line: "Tent name, phone, packs". Phone and packs are optional; blank lines are skipped. */
+/** New format: "Student name, tent number, matric number, phone, packs". The old three-column format remains supported. */
 export function parsePledgeList(text: string): PastedPledge[] {
   const out: PastedPledge[] = [];
   for (const line of text.split(/\r?\n/)) {
     const parts = line.split(",").map((x) => x.trim());
     if (!parts[0]) continue;
-    const packs = parts[2] ? Number(parts[2].replace(/\D/g, "")) : NaN;
+    const modern = parts.length >= 5;
+    const packsPart = modern ? parts[4] : parts[2];
+    const packs = packsPart ? Number(packsPart.replace(/\D/g, "")) : NaN;
     out.push({
-      tent_name: parts[0].slice(0, 60),
-      contact_phone: parts[1] ? parts[1].slice(0, 30) : null,
-      pledged_packs: Number.isFinite(packs) && parts[2] !== "" ? packs : null,
+      tent_name: (modern ? parts[1] : parts[0]).slice(0, 60),
+      student_name: parts[0].slice(0, 120),
+      tent_number: (modern ? parts[1] : parts[0]).slice(0, 30),
+      matric_number: modern && parts[2] ? parts[2].slice(0, 30) : null,
+      contact_phone: (modern ? parts[3] : parts[1]) ? (modern ? parts[3] : parts[1]).slice(0, 30) : null,
+      pledged_packs: Number.isFinite(packs) && packsPart !== "" ? packs : null,
     });
   }
   return out;

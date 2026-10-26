@@ -6,6 +6,7 @@ import { fmtTime } from "@/lib/format";
 import { PLEDGE_STATUS, byPickupTime, isLate } from "@/lib/pledges";
 import type { Pledge } from "@/lib/types";
 import { PickupButtons, PickupStatus } from "./pickup-actions";
+import { PickupList } from "./pickup-list";
 import { ReportForm } from "./report-form";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
 
       <PickupStatus token={token} banner={pickupsTab} />
 
-      {pickupsTab && <Pickups token={token} pledges={pledges} done={done} />}
+      {pickupsTab && <PickupList token={token} pledges={pledges} done={done} />}
 
       {!pickupsTab && banner && (
         <p role="status" className="flex items-start gap-2 rounded-xl border-2 border-ok bg-[#e9f6ee] px-4 py-3 text-base font-medium text-[#14633a]">
