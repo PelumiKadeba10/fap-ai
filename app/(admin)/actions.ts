@@ -72,6 +72,28 @@ export async function saveEvent(input: z.input<typeof EventInput>): Promise<Resu
   return { ok: true };
 }
 
+/** Permanently removes an event and its event-owned records. Shared sites and volunteers are kept. */
+export async function deleteEvent(id: string): Promise<Result> {
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Unknown event." };
+  const supabase = await db();
+  const { data: event } = await supabase.from("events").select("id").eq("id", id).maybeSingle();
+  if (!event) return { ok: false, error: "That event no longer exists." };
+
+  // Database cascades remove the rows; private storage needs explicit cleanup.
+  const { data: photos } = await supabase.from("batches").select("photo_path").eq("event_id", id);
+  const paths = (photos ?? []).map((p) => p.photo_path).filter((p): p is string => !!p);
+  if (paths.length) {
+    const { error } = await createAdminClient().storage.from(PHOTO_BUCKET).remove(paths);
+    if (error) console.error("Event photo cleanup failed", error);
+  }
+
+  const { error } = await supabase.from("events").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  (await cookies()).delete(EVENT_COOKIE);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 async function setEventCookie(id: string) {
   (await cookies()).set(EVENT_COOKIE, id, { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 180 });
 }

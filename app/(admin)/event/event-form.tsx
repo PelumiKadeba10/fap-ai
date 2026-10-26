@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import type { EventRow, EventType } from "@/lib/types";
 import { EVENT_TYPES, MEALS_PER_PERSON, predict } from "@/lib/predict";
 import { fmtTime, fromLagosInput, n0, toLagosInput } from "@/lib/format";
-import { saveEvent } from "../actions";
+import { deleteEvent, saveEvent } from "../actions";
 import { Stat } from "../ui";
 import { useToast } from "../toast";
-import { Check, ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronRight, Loader2, Trash2 } from "lucide-react";
 
 /** `copyFrom` is the last event, offered as a setup to copy (places, collection points, buses) when creating a new one. */
 export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFrom?: { id: string; name: string } | null }) {
@@ -28,6 +28,7 @@ export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFro
   const toast = useToast();
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [deleting, setDeleting] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const v = e.target.value;
     setF((p) => ({ ...p, [k]: k === "name" || k === "type" || k === "starts" || k === "food_from" || k === "bus_ready_by" ? v : k === "meals_served" ? (v === "" ? null : Number(v)) : Number(v) }));
@@ -42,6 +43,16 @@ export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFro
       const r = await saveEvent({ id: event?.id, ...rest, starts_at: fromLagosInput(f.starts), food_from: foodFrom, bus_ready_by: f.bus_ready_by ? fromLagosInput(f.bus_ready_by) : null, copy_from: !event && copy && copyFrom ? copyFrom.id : undefined });
       toast(r.ok, r.ok ? (event ? "Event saved" : "Event created") : r.error);
       if (r.ok && !event) { router.replace("/setup"); router.refresh(); }
+    });
+  }
+
+  function onDelete() {
+    if (!event || deleting || !window.confirm(`Delete “${event.name}” permanently? This removes its food, deliveries, trips, setup and impact data.`)) return;
+    setDeleting(true);
+    start(async () => {
+      const r = await deleteEvent(event.id);
+      toast(r.ok, r.ok ? "Event deleted" : r.error);
+      if (r.ok) { router.replace("/"); router.refresh(); } else setDeleting(false);
     });
   }
 
@@ -127,6 +138,10 @@ export function EventForm({ event, copyFrom }: { event: EventRow | null; copyFro
           {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
           {pending ? "Saving…" : event ? "Save changes" : "Create event"}
         </button>
+        {event && <button type="button" className="link-danger self-start inline-flex items-center gap-1.5" onClick={onDelete} disabled={pending || deleting} aria-busy={deleting}>
+          {deleting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+          {deleting ? "Deleting…" : "Delete this event"}
+        </button>}
       </div>
     </div>
   );
