@@ -96,8 +96,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
       )}
 
       {!pickupsTab && (<>
-      {pendingPickupReports.length > 0 && <ReportForm token={token} pickupPledges={pendingPickupReports.map((p) => ({ id: p.id, tent_name: p.tent_name, picked_up_packs: p.picked_up_packs! }))} />}
-      <ReportForm token={token} />
+      <ReportForm token={token} pickupPledges={pendingPickupReports.map((p) => ({ id: p.id, tent_name: p.tent_name, picked_up_packs: p.picked_up_packs! }))} />
 
       <section aria-labelledby="recent">
         <h2 id="recent" className="text-sm font-semibold tracking-wide text-[#4a525c] uppercase">Your last sends</h2>

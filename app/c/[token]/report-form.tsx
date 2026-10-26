@@ -132,12 +132,17 @@ export function ReportForm({ token, pickupPledges = [] }: { token: string; picku
       {note && <p role="status" className="rounded-xl border-2 border-ok bg-[#e9f6ee] px-4 py-3 text-base font-medium text-[#14633a]">{note}</p>}
       {error && <p role="alert" className="rounded-xl border-2 border-crit px-4 py-3 text-base font-medium text-crit">{error}</p>}
 
+      {pickupPledges.length > 0 && (
+        <section aria-labelledby="confirmed-pickups" className="rounded-xl border-2 border-ink bg-soft px-4 py-3">
+          <h2 id="confirmed-pickups" className="text-lg font-semibold">Confirmed pickups</h2>
+          <p className="mt-1 text-base text-[#4a525c]">{pickupPledges.length} {pickupPledges.length === 1 ? "tent has" : "tents have"} been confirmed: {pickupPledges.map((p) => `${p.tent_name} (${p.picked_up_packs})`).join(", ")} · <b className="font-mono text-ink">{pickupCount} packs</b> total</p>
+        </section>
+      )}
+
       <form ref={form} action={submitFood} onSubmit={onSubmit} className="flex flex-col gap-3">
         <input type="hidden" name="token" value={token} />
         {pickupPledges.length > 0 && (
           <>
-            <h2 className="text-xl font-semibold">Report picked-up food</h2>
-            <p className="text-base text-[#4a525c]">Confirmed pickups: {pickupPledges.map((p) => `${p.tent_name} (${p.picked_up_packs})`).join(", ")}</p>
             <input type="hidden" name="pickup_pledges" value={JSON.stringify(pickupPledges.map((p) => p.id))} />
           </>
         )}
