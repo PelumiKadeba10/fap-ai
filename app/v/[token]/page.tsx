@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AlertTriangle, CheckCircle2, MapPin, Phone, Timer } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SubmitButton } from "@/components/submit-button";
 import { ACTION_LABEL, NEXT_STATUS, STATUS } from "@/lib/status";
 import { fmtDur, fmtTime, minutesBetween } from "@/lib/format";
 import type { DeliveryStatus } from "@/lib/types";
@@ -117,9 +118,7 @@ export default async function VolunteerPage({ params, searchParams }: { params: 
               <input type="hidden" name="token" value={token} />
               <input type="hidden" name="from" value={data.status} />
               <input type="hidden" name="to" value={to} />
-              <button className={`min-h-16 w-full rounded-xl px-4 py-4 text-xl font-semibold active:opacity-80 ${to === "delayed" ? "border-2 border-ink bg-white text-ink" : "bg-ink text-white"}`}>
-                {ACTION_LABEL[to]}
-              </button>
+              <SubmitButton pendingText="Saving…" className={`min-h-16 w-full rounded-xl px-4 py-4 text-xl font-semibold active:opacity-80 ${to === "delayed" ? "border-2 border-ink bg-white text-ink" : "bg-ink text-white"}`}>{ACTION_LABEL[to]}</SubmitButton>
             </form>
           ))}
         </div>

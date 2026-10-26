@@ -34,6 +34,8 @@ export function BusTrip({ token, trip, stops, perCarton, busName, nowIso, alert 
   const router = useRouter();
   const online = useOnline();
   const { taps, rejected } = useTaps(token);
+  const [discarding, setDiscarding] = useState("");
+  async function discard(id: string) { setDiscarding(id); try { await removeTap(id); } finally { setDiscarding(""); } }
   const refresh = useCallback(() => router.refresh(), [router]);
   useTapSync(token, refresh);
 
@@ -91,7 +93,7 @@ export function BusTrip({ token, trip, stops, perCarton, busName, nowIso, alert 
             {taps.map((t) => (
               <li key={t.id} className="flex items-start justify-between gap-3 py-1.5 text-base">
                 <span className="min-w-0"><b>{t.label}</b> <span className="font-mono text-sm text-[#4a525c]">{fmtTime(t.at)}</span>{rejected[t.id] && <span className="block text-sm font-medium text-crit">{rejected[t.id]}</span>}</span>
-                {rejected[t.id] && <button type="button" onClick={() => removeTap(t.id)} className="min-h-11 shrink-0 px-2 text-base font-medium text-[#4a525c] underline underline-offset-4">Discard</button>}
+                {rejected[t.id] && <button type="button" onClick={() => discard(t.id)} disabled={!!discarding} aria-busy={discarding === t.id} className="min-h-11 shrink-0 px-2 text-base font-medium text-[#4a525c] underline underline-offset-4 disabled:opacity-50">{discarding === t.id ? "Discarding…" : "Discard"}</button>}
               </li>
             ))}
           </ul>

@@ -28,6 +28,7 @@ export function ReportForm({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [photoKey, setPhotoKey] = useState(0);
+  const [discarding, setDiscarding] = useState("");
 
   const reload = useCallback(() => queueList(token).then(setQueue).catch(() => {}), [token]);
 
@@ -108,10 +109,13 @@ export function ReportForm({ token }: { token: string }) {
   }
 
   async function discard(id: string) {
-    await queueRemove(id);
-    stuck.current.delete(id);
-    setRejected((p) => Object.fromEntries(Object.entries(p).filter(([k]) => k !== id)));
-    await reload();
+    setDiscarding(id);
+    try {
+      await queueRemove(id);
+      stuck.current.delete(id);
+      setRejected((p) => Object.fromEntries(Object.entries(p).filter(([k]) => k !== id)));
+      await reload();
+    } finally { setDiscarding(""); }
   }
 
   return (
@@ -148,7 +152,7 @@ export function ReportForm({ token }: { token: string }) {
                   {rejected[r.id] && <p className="text-sm font-medium text-crit">{rejected[r.id]}</p>}
                 </div>
                 {rejected[r.id]
-                  ? <button type="button" onClick={() => discard(r.id)} className="min-h-11 shrink-0 px-2 text-base font-medium text-[#4a525c] underline underline-offset-4">Discard</button>
+                  ? <button type="button" onClick={() => discard(r.id)} disabled={!!discarding} aria-busy={discarding === r.id} className="min-h-11 shrink-0 px-2 text-base font-medium text-[#4a525c] underline underline-offset-4 disabled:opacity-50">{discarding === r.id ? "Discarding…" : "Discard"}</button>
                   : <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-warn"><Clock className="size-4" aria-hidden />Waiting to send</span>}
               </li>
             ))}
