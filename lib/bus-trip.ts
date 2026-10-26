@@ -8,7 +8,8 @@ export type CurrentTrip = { id: string; status: TripStatus; trip_no: number | nu
 /** The bus link for a secret token, or null. */
 export async function findBusLink(db: SupabaseClient, token: string): Promise<BusLinkRow | null> {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
-  const { data } = await db.from("bus_links").select("id, event_id, bus_id").eq("token", token).maybeSingle();
+  const { data, error } = await db.from("bus_links").select("id, event_id, bus_id").eq("token", token).maybeSingle();
+  if (error) console.error("[bus-link] token lookup failed", { tokenSuffix: token.slice(-6), code: error.code, message: error.message, details: error.details, hint: error.hint });
   return (data as BusLinkRow | null) ?? null;
 }
 
